@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ЭКОПУЛЬС{% endblock %}</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark.css') }}" id="dark-theme" disabled>
+
+    <link rel="icon" href="{{ url_for('static', filename='img/tree-icon.png') }}" type="image/png">
+
+    <style>
+        /* Кнопка возврата для мобильных */
+        .back-to-map-mobile {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .back-to-map-mobile {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.5rem 1rem;
+                background: var(--primary-color);
+                color: white;
+                border-radius: var(--radius);
+                text-decoration: none;
+                margin-right: 1rem;
+            }
+
+            .header-left {
+                flex: 1;
+            }
+        }
+
+        /* Легенда для ПК только */
+        @media (max-width: 768px) {
+            .map-legend {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <!-- Кнопка возврата на карту -->
+                {% if request.path != '/' %}
+                <a href="{{ url_for('index') }}" class="back-to-map-mobile" title="Вернуться на карту">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>На карту</span>
+                </a>
+                {% endif %}
+
+                <div class="logo">
+                    <i class="fas fa-tree"></i>
+                    <h1 id="site-title">ЭКОПУЛЬС {{ city if city else '' }}</h1>
+                </div>
+
+                <!-- City Selector -->
+                <div class="city-selector">
+                    <select id="city-select">
+                        {% for city_name in cities.keys()|sort %}
+                        <option value="{{ city_name }}" {% if city_name == city %}selected{% endif %}>
+                            {{ city_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <!-- Night Mode Toggle -->
+                <button id="night-mode-toggle" class="btn-icon" title="Ночной режим">
+                    <i class="fas fa-moon"></i>
+                </button>
+
+                <!-- User Menu -->
+                <div class="user-menu">
+                    {% if user %}
+                    <div class="user-dropdown">
+                        <button class="btn-user">
+                            <i class="fas fa-user-circle"></i>
+                            {{ user.name }}
+                            <i class="fas fa-caret-down"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            {% if user.role in ['super_admin', 'junior_admin', 'moderator'] %}
+                            <a href="{{ url_for('admin_panel') }}"><i class="fas fa-cog"></i> Админ панель</a>
+                            {% endif %}
+                            <a href="{{ url_for('add_zone') }}"><i class="fas fa-plus-circle"></i> Добавить зону</a>
+                            <a href="{{ url_for('analytics') }}"><i class="fas fa-chart-line"></i> Аналитика</a>
+                            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Выйти</a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <button id="login-btn" class="btn btn-outline">
+                        <i class="fas fa-sign-in-alt"></i> Войти
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2024 ЭКОПУЛЬС ГОРОДОВ. Система мониторинга зелёных пространств</p>
+            <p>Техническая поддержка: support@ecopulse.ru</p>
+        </footer>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Вход в систему</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Пароль</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Войти</button>
+                </form>
+                <div class="form-footer">
+                    <p>Нет аккаунта? <a href="#" id="show-register">Зарегистрироваться</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="register-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Регистрация</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="register-form">
+                    <div class="form-group">
+                        <label for="reg-name">Имя</label>
+                        <input type="text" id="reg-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input type="email" id="reg-email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Пароль</label>
+                        <input type="password" id="reg-password" name="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-confirm">Подтвердите пароль</label>
+                        <input type="password" id="reg-confirm" name="confirm_password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-city">Город</label>
+                        <select id="reg-city" name="city" required>
+                            <option value="">Выберите город</option>
+                            {% for city_name in cities.keys()|sort %}
+                            <option value="{{ city_name }}">{{ city_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+                </form>
+                <div class="form-footer">
+                    <p>Уже есть аккаунт? <a href="#" id="show-login">Войти</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <script>
+    // Передача данных пользователя в JavaScript для проверки авторизации
+    window.user = {% if user %}{
+        id: {{ user.id }},
+        email: "{{ user.email }}",
+        name: "{{ user.name }}",
+        role: "{{ user.role }}",
+        city: "{{ user.city }}"
+    }{% else %}null{% endif %};
+
+    // Дополнительный скрипт для сортировки городов
+    document.addEventListener('DOMContentLoaded', function() {
+        // Сортировка в модальных окнах
+        const sortCityOptions = (selectId) => {
+            const select = document.getElementById(selectId);
+            if (select) {
+                const options = Array.from(select.options);
+                options.sort((a, b) => a.text.localeCompare(b.text, 'ru'));
+
+                // Сохраняем выбранное значение
+                const selectedValue = select.value;
+
+                // Удаляем все опции
+                while (select.options.length > 0) {
+                    select.remove(0);
+                }
+
+                // Добавляем отсортированные
+                options.forEach(option => {
+                    select.appendChild(option);
+                });
+
+                // Восстанавливаем выбранное значение
+                select.value = selectedValue;
+            }
+        };
+
+        // Сортируем города во всех селекторах
+        ['reg-city', 'zone-city'].forEach(sortCityOptions);
+
+        // Проверяем путь для показа кнопки возврата на десктопе
+        if (window.innerWidth > 768 && window.location.pathname !== '/') {
+            const header = document.querySelector('.header-left');
+            if (header && !document.querySelector('.back-to-map-desktop')) {
+                const backBtn = document.createElement('a');
+                backBtn.className = 'back-to-map-desktop btn btn-outline';
+                backBtn.href = '/';
+                backBtn.innerHTML = '<i class="fas fa-arrow-left"></i> На карту';
+                header.insertBefore(backBtn, header.firstChild);
+            }
+        }
+    });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

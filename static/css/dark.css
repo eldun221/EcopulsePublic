@@ -1,0 +1,116 @@
+body.dark-mode {
+    --primary-color: #4caf50;
+    --primary-light: #81c784;
+    --primary-dark: #1b5e20;
+    --secondary-color: #388e3c;
+    --accent-color: #689f38;
+    --background-light: #121212;
+    --background-white: #1e1e1e;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --border-color: #333333;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .header {
+    background-color: #2d2d2d;
+    border-bottom: 1px solid #333;
+}
+
+body.dark-mode .logo h1 {
+    color: var(--primary-light);
+}
+
+body.dark-mode .logo i {
+    color: var(--primary-light);
+}
+
+body.dark-mode .city-selector select {
+    background-color: #333;
+    color: var(--text-primary);
+    border-color: #444;
+}
+
+body.dark-mode .city-selector select:hover {
+    border-color: var(--primary-light);
+}
+
+body.dark-mode .btn-icon {
+    color: var(--text-primary);
+}
+
+body.dark-mode .btn-icon:hover {
+    background-color: #333;
+    color: var(--primary-light);
+}
+
+body.dark-mode .btn-user {
+    border-color: #444;
+    background-color: #333;
+    color: var(--text-primary);
+}
+
+body.dark-mode .btn-user:hover {
+    background-color: #444;
+    border-color: var(--primary-light);
+}
+
+body.dark-mode .dropdown-content {
+    background-color: #2d2d2d;
+    border: 1px solid #444;
+}
+
+body.dark-mode .dropdown-content a {
+    color: var(--text-primary);
+}
+
+body.dark-mode .dropdown-content a:hover {
+    background-color: #333;
+}
+
+body.dark-mode .btn-outline {
+    border-color: var(--primary-light);
+    color: var(--primary-light);
+}
+
+body.dark-mode .btn-outline:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* Side Panel */
+body.dark-mode .side-panel {
+    background-color: #2d2d2d;
+    border-right: 1px solid #333;
+}
+
+body.dark-mode .panel-header {
+    border-bottom-color: #444;
+    background-color: #252525;
+}
+
+body.dark-mode .panel-header h3 {
+    color: var(--primary-light);
+}
+
+body.dark-mode .toggle-panel-btn {
+    background-color: var(--primary-color);
+}
+
+body.dark-mode .toggle-panel-btn:hover {
+    background-color: var(--primary-dark);
+}
+
+body.dark-mode .filter-group h4 {
+    color: var(--text-secondary);
+}
+
+body.dark-mode .filter-btn {
+    background-color: #333;
+    border-color: #444;
+    color: var(--text-primary);
+}
+
+body.dark-mode .filter-btn:hover {
+    border-color: var(--

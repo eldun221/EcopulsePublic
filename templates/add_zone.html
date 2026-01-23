@@ -1,0 +1,922 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить зону - ЭКОПУЛЬС{% endblock %}
+
+{% block content %}
+<div class="add-zone-container">
+    <div class="add-zone-header">
+        <h1><i class="fas fa-plus-circle"></i> Добавить новую зелёную зону</h1>
+        <p>Заполните форму для подачи заявки на добавление зоны. После модерации администратором зона появится на карте.</p>
+    </div>
+
+    <div class="add-zone-form">
+        <form id="zone-form" method="POST" action="{{ url_for('add_zone') }}">
+            <div class="form-section">
+                <h3><i class="fas fa-info-circle"></i> Основная информация</h3>
+
+                <div class="form-group">
+                    <label for="name">Название зоны *</label>
+                    <input type="text" id="name" name="name"
+                           placeholder="Например: Парк имени Горького"
+                           required>
+                    <small class="hint">Укажите уникальное название для зоны</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="city">Город *</label>
+                        <select id="city" name="city" required>
+                            <option value="">Выберите город</option>
+                            {% for city_name in cities.keys()|sort %}
+                            <option value="{{ city_name }}">{{ city_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="type">Тип зоны *</label>
+                        <select id="type" name="type" required>
+                            <option value="">Выберите тип</option>
+                            {% for type in zone_types %}
+                            <option value="{{ type }}">{{ type|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-map-marker-alt"></i> Местоположение</h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="lat">Широта *</label>
+                        <input type="text" id="lat" name="lat"
+                               placeholder="53.347996"
+                               pattern="^-?\d+(\.\d+)?$"
+                               title="Только цифры и точка"
+                               required>
+                        <small class="hint">Например: 53.347996 (только цифры и точка)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lng">Долгота *</label>
+                        <input type="text" id="lng" name="lng"
+                               placeholder="83.779836"
+                               pattern="^-?\d+(\.\d+)?$"
+                               title="Только цифры и точка"
+                               required>
+                        <small class="hint">Например: 83.779836 (только цифры и точка)</small>
+                    </div>
+                </div>
+
+                <div class="map-preview-container">
+                    <h4>Предпросмотр местоположения</h4>
+                    <div class="map-preview" id="map-preview">
+                        <div class="map-placeholder">
+                            <i class="fas fa-map"></i>
+                            <p>Укажите координаты для предпросмотра</p>
+                            <button type="button" class="btn btn-outline" id="pick-on-map">
+                                <i class="fas fa-crosshairs"></i> Выбрать на карте
+                            </button>
+                        </div>
+                    </div>
+                    <small class="hint">Карта покажет примерное местоположение указанных координат</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="address">Адрес (опционально)</label>
+                    <input type="text" id="address" name="address"
+                           placeholder="Улица, дом, район">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-expand-arrows-alt"></i> Характеристики</h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="area">Площадь</label>
+                        <div class="area-input-group">
+                            <input type="text" id="area" name="area"
+                                   placeholder="Например: 2.5">
+                            <select id="area_unit" name="area_unit">
+                                <option value="га">га</option>
+                                <option value="м²">м²</option>
+                            </select>
+                        </div>
+                        <small class="hint">Укажите площадь в гектарах (га) или квадратных метрах (м²)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="status">Текущее состояние</label>
+                        <select id="status" name="status">
+                            {% for status in statuses.keys() %}
+                            <option value="{{ status }}">{{ status|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Описание зоны *</label>
+                    <textarea id="description" name="description" rows="4"
+                              placeholder="Опишите зону: что здесь находится, какие растения, инфраструктура и т.д."
+                              required></textarea>
+                    <small class="hint">Чем подробнее описание, тем быстрее пройдет модерация</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-images"></i> Фотографии (опционально)</h3>
+
+                <div class="photo-upload">
+                    <div class="upload-area" id="upload-area">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Перетащите сюда фотографии или</p>
+                        <button type="button" class="btn btn-outline" id="browse-photos">
+                            <i class="fas fa-folder-open"></i> Выбрать файлы
+                        </button>
+                        <input type="file" id="photo-input" accept="image/*" multiple style="display: none;">
+                    </div>
+
+                    <div class="photo-preview" id="photo-preview"></div>
+                </div>
+
+                <small class="hint">Максимум 5 фотографий, размером до 5 МБ каждая</small>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" id="preview-btn">
+                    <i class="fas fa-eye"></i> Предпросмотр
+                </button>
+
+                <button type="submit" class="btn btn-primary" id="submit-btn">
+                    <i class="fas fa-paper-plane"></i> Отправить заявку
+                </button>
+            </div>
+
+            <div class="form-notice">
+                <p><i class="fas fa-info-circle"></i> После отправки заявка будет рассмотрена администратором в течение 3 рабочих дней.</p>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно предпросмотра -->
+<div id="preview-modal" class="modal">
+    <div class="modal-content modal-wide">
+        <div class="modal-header">
+            <h3>Предпросмотр заявки</h3>
+            <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body" id="preview-content"></div>
+    </div>
+</div>
+
+<style>
+.add-zone-container {
+    max-width: 1000px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.add-zone-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.add-zone-header h1 {
+    color: var(--primary-dark);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.add-zone-header p {
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+.add-zone-form {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    padding: 2.5rem;
+}
+
+.form-section {
+    margin-bottom: 2.5rem;
+    padding-bottom: 2.5rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.form-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.form-section h3 {
+    color: var(--primary-dark);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.hint {
+    display: block;
+    margin-top: 0.5rem;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+/* Стили для группы ввода площади */
+.area-input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.area-input-group input {
+    flex: 1;
+}
+
+.area-input-group select {
+    width: 80px;
+}
+
+/* Стили для карты предпросмотра */
+.map-preview-container {
+    margin: 1.5rem 0;
+}
+
+.map-preview-container h4 {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.map-preview {
+    height: 300px;
+    background: #f5f5f5;
+    border-radius: 6px;
+    margin: 0.5rem 0;
+    border: 2px dashed #ddd;
+    overflow: hidden;
+}
+
+.map-placeholder {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}
+
+.map-placeholder i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #ccc;
+}
+
+.map-placeholder p {
+    margin-bottom: 1rem;
+}
+
+.photo-upload {
+    margin: 1.5rem 0;
+}
+
+.upload-area {
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    padding: 3rem 2rem;
+    text-align: center;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color);
+    background: rgba(46, 125, 50, 0.02);
+}
+
+.upload-area i {
+    font-size: 3rem;
+    color: #ccc;
+    margin-bottom: 1rem;
+}
+
+.upload-area p {
+    margin-bottom: 1rem;
+    color: #666;
+}
+
+.photo-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.photo-item {
+    position: relative;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.photo-item img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+}
+
+.remove-photo {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin: 3rem 0 2rem;
+}
+
+.form-notice {
+    background: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 6px;
+    padding: 1.25rem;
+    text-align: center;
+    color: #2e7d32;
+}
+
+.form-notice i {
+    margin-right: 0.5rem;
+}
+
+/* Темная тема */
+body.dark-mode .add-zone-form {
+    background: #2d2d2d;
+    color: var(--text-primary);
+}
+
+body.dark-mode .form-section {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .form-section h3 {
+    color: var(--primary-light);
+}
+
+body.dark-mode .form-group label {
+    color: var(--text-primary);
+}
+
+body.dark-mode .form-group input,
+body.dark-mode .form-group select,
+body.dark-mode .form-group textarea {
+    background-color: #333;
+    border-color: #444;
+    color: var(--text-primary);
+}
+
+body.dark-mode .hint {
+    color: #b0b0b0;
+}
+
+body.dark-mode .map-preview {
+    background: #333;
+    border-color: #444;
+}
+
+body.dark-mode .map-placeholder {
+    color: #b0b0b0;
+}
+
+body.dark-mode .upload-area {
+    border-color: #444;
+    background: #333;
+}
+
+body.dark-mode .upload-area:hover {
+    border-color: var(--primary-light);
+    background: rgba(76, 175, 80, 0.05);
+}
+
+body.dark-mode .form-notice {
+    background: #1b5e20;
+    border-color: #2e7d32;
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .add-zone-form {
+        padding: 1.5rem;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .photo-preview {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+
+    .area-input-group {
+        flex-direction: column;
+    }
+
+    .area-input-group select {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+let mapPreview = null;
+let previewMarker = null;
+let uploadedPhotos = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('zone-form');
+    const pickOnMapBtn = document.getElementById('pick-on-map');
+    const browsePhotosBtn = document.getElementById('browse-photos');
+    const photoInput = document.getElementById('photo-input');
+    const uploadArea = document.getElementById('upload-area');
+    const photoPreview = document.getElementById('photo-preview');
+    const previewBtn = document.getElementById('preview-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const latInput = document.getElementById('lat');
+    const lngInput = document.getElementById('lng');
+    const citySelect = document.getElementById('city');
+
+    // Валидация ввода координат (только цифры и точка)
+    latInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^\d.-]/g, '');
+        updateMapPreview();
+    });
+
+    lngInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^\d.-]/g, '');
+        updateMapPreview();
+    });
+
+    // Инициализация карты предпросмотра
+    function initMapPreview() {
+        const mapContainer = document.getElementById('map-preview');
+        if (!mapContainer) return;
+
+        // Удаляем предыдущую карту если есть
+        if (mapPreview) {
+            mapPreview.remove();
+            mapPreview = null;
+        }
+
+        // Создаем карту
+        mapPreview = L.map(mapContainer, {
+            center: [53.347996, 83.779836],
+            zoom: 12,
+            zoomControl: false,
+            attributionControl: false
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 18
+        }).addTo(mapPreview);
+
+        // Добавляем маркер
+        previewMarker = L.marker([53.347996, 83.779836], {
+            draggable: true
+        }).addTo(mapPreview);
+
+        // Обработка перетаскивания маркера
+        previewMarker.on('dragend', function(e) {
+            const latlng = e.target.getLatLng();
+            latInput.value = latlng.lat.toFixed(6);
+            lngInput.value = latlng.lng.toFixed(6);
+        });
+    }
+
+    // Обновление карты предпросмотра
+    function updateMapPreview() {
+        if (!mapPreview) return;
+
+        const lat = parseFloat(latInput.value);
+        const lng = parseFloat(lngInput.value);
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+            const newLatLng = [lat, lng];
+            mapPreview.setView(newLatLng, 15);
+
+            if (previewMarker) {
+                previewMarker.setLatLng(newLatLng);
+            } else {
+                previewMarker = L.marker(newLatLng, {
+                    draggable: true
+                }).addTo(mapPreview);
+
+                previewMarker.on('dragend', function(e) {
+                    const latlng = e.target.getLatLng();
+                    latInput.value = latlng.lat.toFixed(6);
+                    lngInput.value = latlng.lng.toFixed(6);
+                });
+            }
+        }
+    }
+
+    // Инициализация карты при загрузке
+    setTimeout(() => {
+        if (document.getElementById('map-preview')) {
+            initMapPreview();
+        }
+    }, 500);
+
+    // Выбор местоположения на карте - ОТКРЫВАЕМ В ТОЙ ЖЕ ВКЛАДКЕ
+    if (pickOnMapBtn) {
+        pickOnMapBtn.addEventListener('click', function() {
+            const city = citySelect.value || 'Барнаул';
+            // Сохраняем данные формы
+            saveFormData();
+            // Открываем в той же вкладке
+            window.location.href = `/?city=${encodeURIComponent(city)}&pick_location=true`;
+        });
+    }
+
+    // Сохранение данных формы в sessionStorage
+    function saveFormData() {
+        const formData = {
+            name: document.getElementById('name').value,
+            city: document.getElementById('city').value,
+            type: document.getElementById('type').value,
+            lat: document.getElementById('lat').value,
+            lng: document.getElementById('lng').value,
+            area: document.getElementById('area').value,
+            area_unit: document.getElementById('area_unit').value,
+            description: document.getElementById('description').value
+        };
+        sessionStorage.setItem('formData', JSON.stringify(formData));
+        sessionStorage.setItem('fromAddZone', 'true');
+    }
+
+    // Восстановление данных формы при возврате
+    function restoreFormData() {
+        if (sessionStorage.getItem('fromAddZone') === 'true') {
+            try {
+                const formData = JSON.parse(sessionStorage.getItem('formData') || '{}');
+                if (formData.name) document.getElementById('name').value = formData.name;
+                if (formData.city) document.getElementById('city').value = formData.city;
+                if (formData.type) document.getElementById('type').value = formData.type;
+                if (formData.lat) document.getElementById('lat').value = formData.lat;
+                if (formData.lng) document.getElementById('lng').value = formData.lng;
+                if (formData.area) document.getElementById('area').value = formData.area;
+                if (formData.area_unit) document.getElementById('area_unit').value = formData.area_unit;
+                if (formData.description) document.getElementById('description').value = formData.description;
+
+                updateMapPreview();
+            } catch (e) {
+                console.error('Ошибка восстановления данных формы:', e);
+            }
+            sessionStorage.removeItem('formData');
+            sessionStorage.removeItem('fromAddZone');
+        }
+    }
+
+    // Загрузка выбранных координат из сессии
+    if (sessionStorage.getItem('pickedLocation')) {
+        try {
+            const location = JSON.parse(sessionStorage.getItem('pickedLocation'));
+            latInput.value = location.lat;
+            lngInput.value = location.lng;
+            updateMapPreview();
+            sessionStorage.removeItem('pickedLocation');
+
+            // Показываем уведомление
+            alert('Координаты успешно загружены из карты!');
+        } catch (e) {
+            console.error('Ошибка загрузки координат:', e);
+        }
+    }
+
+    // Восстанавливаем данные формы при загрузке
+    restoreFormData();
+
+    // Загрузка фотографий
+    uploadArea.addEventListener('click', () => photoInput.click());
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = 'var(--primary-color)';
+        uploadArea.style.background = 'rgba(46, 125, 50, 0.05)';
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.borderColor = '#ddd';
+        uploadArea.style.background = '';
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#ddd';
+        uploadArea.style.background = '';
+
+        const files = e.dataTransfer.files;
+        handlePhotoUpload(files);
+    });
+
+    photoInput.addEventListener('change', (e) => {
+        handlePhotoUpload(e.target.files);
+    });
+
+    function handlePhotoUpload(files) {
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+        Array.from(files).forEach(file => {
+            if (!validTypes.includes(file.type)) {
+                alert('Пожалуйста, загружайте только изображения (JPEG, PNG, GIF, WebP)');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Размер файла не должен превышать 5 МБ');
+                return;
+            }
+
+            if (uploadedPhotos.length >= 5) {
+                alert('Максимальное количество фотографий - 5');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const photo = {
+                    name: file.name,
+                    data: e.target.result,
+                    type: file.type
+                };
+
+                uploadedPhotos.push(photo);
+                renderPhotoPreview();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        photoInput.value = '';
+    }
+
+    function renderPhotoPreview() {
+        photoPreview.innerHTML = '';
+
+        uploadedPhotos.forEach((photo, index) => {
+            const photoItem = document.createElement('div');
+            photoItem.className = 'photo-item';
+            photoItem.innerHTML = `
+                <img src="${photo.data}" alt="${photo.name}">
+                <button type="button" class="remove-photo" onclick="removePhoto(${index})">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            photoPreview.appendChild(photoItem);
+        });
+    }
+
+    window.removePhoto = function(index) {
+        uploadedPhotos.splice(index, 1);
+        renderPhotoPreview();
+    };
+
+    // Предпросмотр заявки
+    previewBtn.addEventListener('click', function() {
+        if (!validateForm()) return;
+
+        const formData = getFormData();
+        const previewContent = generatePreviewHTML(formData);
+
+        document.getElementById('preview-content').innerHTML = previewContent;
+        document.getElementById('preview-modal').classList.add('active');
+    });
+
+    // Отправка формы
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        if (!validateForm()) return;
+
+        // Показываем индикатор загрузки
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+
+        try {
+            // Отправляем форму традиционным способом
+            const response = await fetch('/add-zone', {
+                method: 'POST',
+                body: new FormData(form)
+            });
+
+            if (response.ok) {
+                alert('Заявка успешно отправлена на рассмотрение!');
+                form.reset();
+                uploadedPhotos = [];
+                photoPreview.innerHTML = '';
+                window.location.href = '/';
+            } else {
+                const errorText = await response.text();
+                console.error('Ошибка отправки заявки:', errorText);
+                alert('Ошибка отправки заявки. Пожалуйста, попробуйте еще раз.');
+            }
+        } catch (error) {
+            console.error('Ошибка отправки заявки:', error);
+            alert('Ошибка соединения. Пожалуйста, попробуйте позже.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Отправить заявку';
+        }
+    });
+
+    function validateForm() {
+        const requiredFields = [
+            'name', 'city', 'type',
+            'lat', 'lng', 'description'
+        ];
+
+        for (const fieldName of requiredFields) {
+            const field = document.querySelector(`[name="${fieldName}"]`);
+            if (field && !field.value.trim()) {
+                alert(`Пожалуйста, заполните поле: ${field.previousElementSibling.textContent}`);
+                field.focus();
+                return false;
+            }
+        }
+
+        const lat = parseFloat(latInput.value);
+        const lng = parseFloat(lngInput.value);
+
+        if (isNaN(lat) || lat < -90 || lat > 90) {
+            alert('Пожалуйста, укажите корректную широту (-90 до 90)');
+            return false;
+        }
+
+        if (isNaN(lng) || lng < -180 || lng > 180) {
+            alert('Пожалуйста, укажите корректную долготу (-180 до 180)');
+            return false;
+        }
+
+        return true;
+    }
+
+    function getFormData() {
+        return {
+            name: document.getElementById('name').value,
+            city: document.getElementById('city').value,
+            type: document.getElementById('type').value,
+            lat: document.getElementById('lat').value,
+            lng: document.getElementById('lng').value,
+            address: document.getElementById('address').value,
+            area: document.getElementById('area').value,
+            area_unit: document.getElementById('area_unit').value,
+            status: document.getElementById('status').value,
+            description: document.getElementById('description').value,
+            photos: uploadedPhotos
+        };
+    }
+
+    function generatePreviewHTML(data) {
+        const statusColors = {
+            'отличный': '#4caf50',
+            'хороший': '#8bc34a',
+            'удовлетворительный': '#ffeb3b',
+            'требует ухода': '#ff9800',
+            'критический': '#f44336'
+        };
+
+        return `
+            <div class="preview-content">
+                <h3>${data.name}</h3>
+
+                <div class="preview-grid">
+                    <div class="preview-item">
+                        <strong>Город:</strong> ${data.city}
+                    </div>
+                    <div class="preview-item">
+                        <strong>Тип зоны:</strong> ${data.type}
+                    </div>
+                    <div class="preview-item">
+                        <strong>Координаты:</strong> ${data.lat}, ${data.lng}
+                    </div>
+                    <div class="preview-item">
+                        <strong>Состояние:</strong>
+                        <span style="color: ${statusColors[data.status] || '#666'}">
+                            ${data.status}
+                        </span>
+                    </div>
+                    ${data.area ? `<div class="preview-item"><strong>Площадь:</strong> ${data.area} ${data.area_unit}</div>` : ''}
+                    ${data.address ? `<div class="preview-item"><strong>Адрес:</strong> ${data.address}</div>` : ''}
+                </div>
+
+                <div class="preview-section">
+                    <h4>Описание:</h4>
+                    <p>${data.description}</p>
+                </div>
+
+                ${data.photos.length > 0 ? `
+                <div class="preview-section">
+                    <h4>Фотографии (${data.photos.length}):</h4>
+                    <div class="preview-photos">
+                        ${data.photos.map((photo, i) => `
+                            <div class="preview-photo">
+                                <img src="${photo.data}" alt="Фото ${i + 1}">
+                                <small>${photo.name}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="preview-notice">
+                    <p><i class="fas fa-info-circle"></i> Заявка будет рассмотрена администратором в течение 3 рабочих дней.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    // Закрытие модального окна
+    document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.closest('.modal').classList.remove('active');
+        });
+    });
+
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

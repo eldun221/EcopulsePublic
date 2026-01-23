@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}ЭКОПУЛЬС {{ city }}{% endblock %}
+
+{% block content %}
+<div class="map-container">
+    <div id="map"></div>
+
+    <!-- Side Panel -->
+    <div class="side-panel" id="side-panel">
+        <div class="panel-header">
+            <div class="panel-title-wrapper">
+                <h3><i class="fas fa-map-marker-alt"></i> Зоны города {{ city }}</h3>
+                <button class="toggle-panel-btn" onclick="toggleSidePanel()" title="Скрыть/показать панель">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="panel-content">
+            <!-- Filters -->
+            <div class="filters">
+                <div class="filter-group">
+                    <h4>Фильтр по статусу</h4>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-status="all">Все</button>
+                        {% for status, data in statuses.items() %}
+                        <button class="filter-btn" data-status="{{ status }}">
+                            {{ data.icon }} {{ status|capitalize }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <h4>Фильтр по типу</h4>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-type="all">Все</button>
+                        {% for type in zone_types %}
+                        <button class="filter-btn" data-type="{{ type }}">
+                            {{ type|capitalize }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="statistics">
+                <h4>Статистика города</h4>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-zones">0</div>
+                        <div class="stat-label">Всего зон</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="good-zones">0</div>
+                        <div class="stat-label">В хорошем состоянии</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="problem-zones">0</div>
+                        <div class="stat-label">С проблемами</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Кнопка для режима админа -->
+            {% if user and user.role == 'admin' and request.args.get('admin_mode') == 'true' %}
+            <div class="admin-mode-notice">
+                <h4><i class="fas fa-crown"></i> Режим администратора</h4>
+                <p>Кликните на карте, чтобы выбрать координаты для новой зоны.</p>
+                <button class="btn btn-primary" onclick="saveSelectedLocation()">
+                    <i class="fas fa-check"></i> Использовать выбранное местоположение
+                </button>
+                <button class="btn btn-outline" onclick="cancelLocationSelection()">
+                    <i class="fas fa-times"></i> Отмена
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Legend (только для ПК) -->
+    <div class="map-legend">
+        <h4>Легенда</h4>
+        {% for status, data in statuses.items() %}
+        <div class="legend-item">
+            <span class="legend-color" style="background-color: {{ data.color }}"></span>
+            <span class="legend-label">{{ status|capitalize }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Analytics Modal -->
+<div id="analytics-modal" class="modal modal-wide">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="chart-title">Аналитика</h3>
+            <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <canvas id="analytics-chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+// Передаем данные в глобальную область видимости для JavaScript
+window.citiesData = {{ cities|tojson }};
+window.statuses = {{ statuses|tojson }};
+window.zoneTypes = {{ zone_types|tojson }};
+window.isAdminMode = {{ 'true' if (user and user.role == 'admin' and request.args.get('admin_mode') == 'true') else 'false' }};
+</script>
+
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+
+<style>
+/* Стили для заголовка панели */
+.panel-title-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.panel-title-wrapper h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--primary-dark);
+}
+
+.toggle-panel-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 1rem;
+    transition: all 0.3s;
+}
+
+.toggle-panel-btn:hover {
+    background: var(--primary-dark);
+    transform: scale(1.1);
+}
+
+.toggle-panel-btn i {
+    transition: transform 0.3s;
+}
+
+.side-panel.collapsed .toggle-panel-btn i {
+    transform: rotate(180deg);
+}
+
+.side-panel:not(.collapsed) {
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+}
+
+.side-panel.collapsed {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+/* Легенда только для ПК */
+.map-legend {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    background-color: var(--background-white);
+    padding: 1rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 1000;
+    max-width: 200px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
+
+.legend-label {
+    font-size: 0.85rem;
+}
+
+/* Уведомление для режима админа */
+.admin-mode-notice {
+    background: linear-gradient(135deg, #ffeb3b, #ff9800);
+    border: 2px solid #ff9800;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    color: #333;
+}
+
+.admin-mode-notice h4 {
+    color: #333;
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-mode-notice p {
+    margin: 0.5rem 0 1rem 0;
+}
+
+.admin-mode-notice .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Стили для скрытия атрибуции */
+#map .leaflet-control-attribution {
+    display: none !important;
+}
+
+#map .leaflet-bottom.leaflet-right {
+    display: none !important;
+}
+
+.leaflet-container a.leaflet-attribution-flag {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .panel-title-wrapper h3 {
+        font-size: 1rem;
+    }
+
+    .toggle-panel-btn {
+        width: 28px;
+        height: 28px;
+    }
+
+    .map-legend {
+        display: none;
+    }
+}
+
+/* Темная тема */
+body.dark-mode .map-legend {
+    background-color: #2d2d2d;
+    color: var(--text-primary);
+}
+
+body.dark-mode .legend-label {
+    color: var(--text-primary);
+}
+</style>
+
+<script>
+// Функция переключения панели
+function toggleSidePanel() {
+    const sidePanel = document.getElementById('side-panel');
+    const toggleBtn = document.querySelector('.toggle-panel-btn');
+
+    if (sidePanel) {
+        sidePanel.classList.toggle('collapsed');
+
+        // Перерисовываем карту при изменении размера
+        if (window.map) {
+            setTimeout(() => {
+                window.map.invalidateSize();
+            }, 300);
+        }
+    }
+}
+
+// Сохранение выбранного местоположения для админа
+function saveSelectedLocation() {
+    if (window.selectedLocation) {
+        sessionStorage.setItem('selectedLocation', JSON.stringify(window.selectedLocation));
+        alert('Местоположение сохранено! Вернитесь к форме добавления зоны.');
+        window.close(); // Закрываем вкладку
+    } else {
+        alert('Сначала выберите точку на карте!');
+    }
+}
+
+function cancelLocationSelection() {
+    sessionStorage.removeItem('adminAddingZone');
+    sessionStorage.removeItem('selectedLocation');
+    alert('Режим выбора координат отменен.');
+    window.close();
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    // Добавляем анимацию для кнопки при первом посещении
+    const toggleBtn = document.querySelector('.toggle-panel-btn');
+    if (toggleBtn && !localStorage.getItem('panelHintShown')) {
+        setTimeout(() => {
+            toggleBtn.classList.add('pulse');
+            setTimeout(() => {
+                toggleBtn.classList.remove('pulse');
+                localStorage.setItem('panelHintShown', 'true');
+            }, 3000);
+        }, 1000);
+    }
+
+    // Сортируем города в алфавитном порядке в шапке
+    const citySelect = document.getElementById('city-select');
+    if (citySelect) {
+        const options = Array.from(citySelect.options);
+        options.sort((a, b) => a.text.localeCompare(b.text, 'ru'));
+
+        // Сохраняем выбранное значение
+        const selectedValue = citySelect.value;
+
+        // Удаляем все опции
+        while (citySelect.options.length > 0) {
+            citySelect.remove(0);
+        }
+
+        // Добавляем отсортированные
+        options.forEach(option => {
+            citySelect.appendChild(option);
+        });
+
+        // Восстанавливаем выбранное значение
+        citySelect.value = selectedValue;
+    }
+
+    // Загружаем статистику города (не зависящую от видимых точек)
+    loadCityStatistics();
+});
+
+// Загрузка статистики города
+async function loadCityStatistics() {
+    try {
+        const city = document.getElementById('city-select')?.value || '{{ city }}';
+        const response = await fetch(`/api/analytics/data?city=${encodeURIComponent(city)}`);
+        const data = await response.json();
+
+        if (data.metrics) {
+            document.getElementById('total-zones').textContent = data.metrics.total_zones || 0;
+            document.getElementById('good-zones').textContent = data.metrics.good_zones || 0;
+            document.getElementById('problem-zones').textContent = data.metrics.problem_zones || 0;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
+    }
+}
+
+// Обработчик изменения города
+const citySelect = document.getElementById('city-select');
+if (citySelect) {
+    citySelect.addEventListener('change', function() {
+        loadCityStatistics();
+    });
+}
+
+// Глобальные функции для доступа из map.js
+window.toggleSidePanel = toggleSidePanel;
+window.saveSelectedLocation = saveSelectedLocation;
+window.cancelLocationSelection = cancelLocationSelection;
+</script>
+{% endblock %}
