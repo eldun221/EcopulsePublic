@@ -113,4 +113,326 @@ body.dark-mode .filter-btn {
 }
 
 body.dark-mode .filter-btn:hover {
-    border-color: var(--
+    border-color: var(--primary-light);
+}
+
+/* Темная тема для add_zone.html */
+body.dark-mode .add-zone-form {
+    background: #2d2d2d;
+    color: var(--text-primary);
+}
+
+body.dark-mode .form-section {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .form-section h3 {
+    color: var(--primary-light);
+}
+
+body.dark-mode .form-group label {
+    color: var(--text-primary);
+}
+
+body.dark-mode .form-group input,
+body.dark-mode .form-group select,
+body.dark-mode .form-group textarea {
+    background-color: #333;
+    border-color: #444;
+    color: var(--text-primary);
+}
+
+body.dark-mode .hint {
+    color: #b0b0b0;
+}
+
+body.dark-mode .map-preview {
+    background: #333;
+    border-color: #444;
+}
+
+body.dark-mode .map-placeholder {
+    color: #b0b0b0;
+}
+
+body.dark-mode .upload-area {
+    border-color: #444;
+    background: #333;
+}
+
+body.dark-mode .upload-area:hover {
+    border-color: var(--primary-light);
+    background: rgba(76, 175, 80, 0.05);
+}
+
+body.dark-mode .form-notice {
+    background: #1b5e20;
+    border-color: #2e7d32;
+    color: white;
+}
+
+/* Темная тема для admin.html */
+body.dark-mode .stat-card,
+body.dark-mode .table-container,
+body.dark-mode .table-controls,
+body.dark-mode .report-card,
+body.dark-mode .dictionary-content {
+    background: #2d2d2d;
+    color: var(--text-primary);
+}
+
+body.dark-mode .admin-table th {
+    background: #333;
+    color: var(--text-primary);
+    border-bottom-color: #444;
+}
+
+body.dark-mode .admin-table td {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .admin-table tr:hover {
+    background: #333;
+}
+
+body.dark-mode .dictionary-table th {
+    background: #333;
+    color: var(--text-primary);
+    border-bottom-color: #444;
+}
+
+body.dark-mode .dictionary-table td {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .dictionary-table tr:hover {
+    background: #333;
+}
+
+body.dark-mode .stat-value {
+    color: var(--primary-light);
+}
+
+body.dark-mode .stat-label {
+    color: #b0b0b0;
+}
+
+body.dark-mode .tab-btn:hover {
+    background: #333;
+}
+
+body.dark-mode .tab-btn.active {
+    color: var(--primary-light);
+}
+
+body.dark-mode .tab-btn.active:after {
+    background: var(--primary-light);
+}
+
+body.dark-mode .admin-tabs {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .role-badge-super_admin {
+    background: linear-gradient(135deg, #ffd700, #ffa500);
+    color: #333;
+}
+
+body.dark-mode .role-badge-junior_admin {
+    background: linear-gradient(135deg, #388e3c, #1b5e20);
+    color: white;
+}
+
+body.dark-mode .role-badge-moderator {
+    background: linear-gradient(135deg, #1976d2, #0d47a1);
+    color: white;
+}
+
+body.dark-mode .role-badge-user {
+    background: #333;
+    color: #b0b0b0;
+}
+
+body.dark-mode .admin-form-input {
+    background-color: #333 !important;
+    border: 1px solid #444 !important;
+    color: white !important;
+}
+
+body.dark-mode .admin-form-input:focus {
+    background-color: #444 !important;
+    border-color: var(--primary-light) !important;
+}
+
+/* Темная тема для analytics.html */
+body.dark-mode .analytics-controls select {
+    background-color: #333;
+    border-color: #444;
+    color: var(--text-primary);
+}
+
+body.dark-mode .metric-card {
+    background: #2d2d2d;
+    color: #fff;
+}
+
+body.dark-mode .metric-value {
+    color: var(--primary-light);
+}
+
+body.dark-mode .metric-label {
+    color: #b0b0b0;
+}
+
+body.dark-mode .predictions-section h2 {
+    color: #fff;
+}
+
+body.dark-mode .prediction-card {
+    background: #2d2d2d;
+    color: #fff;
+}
+
+body.dark-mode .prediction-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+}
+
+body.dark-mode .prediction-item {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .prediction-summary {
+    background: #333;
+    color: #fff;
+}
+
+body.dark-mode .recommendation-item {
+    background: #333;
+    color: #fff;
+}
+
+body.dark-mode .detailed-stats {
+    background: #2d2d2d;
+    color: #fff;
+}
+
+body.dark-mode .detailed-stats h2 {
+    color: #fff;
+}
+
+body.dark-mode .stats-tabs {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .stats-tab:hover {
+    background: #333;
+    color: var(--primary-light);
+}
+
+body.dark-mode .stats-tab.active {
+    color: var(--primary-light);
+}
+
+body.dark-mode .stats-tab.active:after {
+    background: var(--primary-light);
+}
+
+body.dark-mode .stats-table th {
+    background-color: #333;
+    color: #fff;
+    border-bottom-color: #444;
+}
+
+body.dark-mode .stats-table td {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .stats-table tr:hover {
+    background-color: #333;
+}
+
+body.dark-mode .chart-card {
+    background-color: #2d2d2d;
+    color: #fff;
+}
+
+body.dark-mode .chart-header h3 {
+    color: #fff;
+}
+
+/* Темная тема для index.html */
+body.dark-mode .map-legend {
+    background-color: #2d2d2d;
+    color: var(--text-primary);
+}
+
+body.dark-mode .legend-label {
+    color: var(--text-primary);
+}
+/* Добавить в конец файла dark.css */
+body.dark-mode .actions button,
+body.dark-mode .btn-view, body.dark-mode .btn-edit, body.dark-mode .btn-delete,
+body.dark-mode .btn-approve, body.dark-mode .btn-reject,
+body.dark-mode .btn-promote-junior, body.dark-mode .btn-promote-moderator, body.dark-mode .btn-demote {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+}
+
+body.dark-mode .actions button:hover,
+body.dark-mode .btn-view:hover, body.dark-mode .btn-edit:hover, body.dark-mode .btn-delete:hover,
+body.dark-mode .btn-approve:hover, body.dark-mode .btn-reject:hover,
+body.dark-mode .btn-promote-junior:hover, body.dark-mode .btn-promote-moderator:hover, body.dark-mode .btn-demote:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4) !important;
+}
+
+body.dark-mode .dictionary-controls {
+    background-color: #333;
+    border: 1px solid #444;
+}
+/* Стили для темной темы справочников */
+body.dark-mode .dictionary-filters {
+    background-color: #333;
+    border: 1px solid #444;
+}
+
+body.dark-mode .dictionary-filters select {
+    background-color: #444;
+    border-color: #555;
+    color: var(--text-primary);
+}
+
+body.dark-mode .sort-buttons .btn-outline {
+    border-color: var(--primary-light);
+    color: var(--primary-light);
+}
+
+body.dark-mode .sort-buttons .btn-outline:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+body.dark-mode .status-badge.active {
+    background-color: var(--primary-color) !important;
+}
+
+body.dark-mode .status-badge.inactive {
+    background-color: #f44336 !important;
+}
+
+body.dark-mode .btn-toggle {
+    background: #ff9800 !important;
+    color: white !important;
+}
+
+body.dark-mode .btn-toggle:hover {
+    background: #f57c00 !important;
+}
+
+body.dark-mode .btn-delete-hard {
+    background: #d32f2f !important;
+    color: white !important;
+}
+
+body.dark-mode .btn-delete-hard:hover {
+    background: #b71c1c !important;
+}

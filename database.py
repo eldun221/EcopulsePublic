@@ -76,7 +76,6 @@ def init_db():
     ''')
 
     # Заявки на добавление зон
-    # В создании таблицы zone_requests:
     conn.execute('''
         CREATE TABLE IF NOT EXISTS zone_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,6 +127,19 @@ def init_db():
         )
     ''')
 
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS zone_request_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER,
+            mime_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (request_id) REFERENCES zone_requests (id) ON DELETE CASCADE
+        )
+    ''')
+
     # Журнал обслуживания
     conn.execute('''
         CREATE TABLE IF NOT EXISTS maintenance_logs (
@@ -174,8 +186,9 @@ def init_db():
             VALUES (?, ?, ?, ?)
         ''', city)
 
-    # Заполняем типы зон
-    zone_types_data = ['парк', 'сквер', 'газон', 'сад', 'лесопарк', 'бульвар', 'аллея', 'спортивная площадка', 'детская площадка']
+    # Заполняем типы зон (добавлен "площадь")
+    zone_types_data = ['парк', 'сквер', 'газон', 'сад', 'лесопарк', 'бульвар',
+                       'аллея', 'спортивная площадка', 'детская площадка', 'площадь']
     for zone_type in zone_types_data:
         conn.execute('''
             INSERT OR IGNORE INTO zone_types (name)

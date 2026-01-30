@@ -20,56 +20,26 @@
 
     <link rel="icon" href="{{ url_for('static', filename='img/tree-icon.png') }}" type="image/png">
 
-    <style>
-        /* Кнопка возврата для мобильных */
-        .back-to-map-mobile {
-            display: none;
-        }
 
-        @media (max-width: 768px) {
-            .back-to-map-mobile {
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 0.5rem 1rem;
-                background: var(--primary-color);
-                color: white;
-                border-radius: var(--radius);
-                text-decoration: none;
-                margin-right: 1rem;
-            }
-
-            .header-left {
-                flex: 1;
-            }
-        }
-
-        /* Легенда для ПК только */
-        @media (max-width: 768px) {
-            .map-legend {
-                display: none !important;
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="app-container">
         <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <!-- Кнопка возврата на карту -->
+                <!-- Кнопка возврата на карту
                 {% if request.path != '/' %}
                 <a href="{{ url_for('index') }}" class="back-to-map-mobile" title="Вернуться на карту">
                     <i class="fas fa-arrow-left"></i>
                     <span>На карту</span>
                 </a>
-                {% endif %}
+                {% endif %} -->
 
                 <div class="logo">
                     <i class="fas fa-tree"></i>
                     <h1 id="site-title">ЭКОПУЛЬС {{ city if city else '' }}</h1>
                 </div>
-
+                {% if request.path == '/' %}
                 <!-- City Selector -->
                 <div class="city-selector">
                     <select id="city-select">
@@ -80,6 +50,7 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
             </div>
 
             <div class="header-right">
@@ -254,6 +225,7 @@
     });
     </script>
 
-    {% block scripts %}{% endblock %}
+    {% block scripts %}
+    {% endblock %}
 </body>
 </html>

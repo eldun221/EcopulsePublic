@@ -151,26 +151,22 @@ function createMarker(zone) {
 
     // Popup с информацией
     const popupContent = `
-        <div class="popup-content" style="min-width: 250px;">
-            <h3 style="margin: 0 0 10px 0; color: #1b5e20;">${zone.name}</h3>
-            <div style="margin-bottom: 10px;">
-                <strong>Тип:</strong> ${zone.type}<br>
-                <strong>Статус:</strong> <span style="color: ${statusColors[zone.status]}">${zone.status}</span><br>
-                ${zone.problems_count > 0 ? `<strong>Активных проблем:</strong> ${zone.problems_count}<br>` : ''}
-            </div>
-            <p style="margin: 10px 0; font-size: 14px; color: #666;">${zone.description || ''}</p>
-            <div style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="showZoneDetails(${zone.id})"
-                        style="flex: 1; padding: 8px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    Подробнее
-                </button>
-                <button onclick="reportProblem(${zone.id})"
-                        style="flex: 1; padding: 8px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    Сообщить о проблеме
-                </button>
-            </div>
+    <div class="popup-content" style="min-width: 250px;">
+        <h3 style="margin: 0 0 10px 0; color: #1b5e20;">${zone.name}</h3>
+        <div style="margin-bottom: 10px;">
+            <strong>Тип:</strong> ${zone.type}<br>
+            <strong>Статус:</strong> <span style="color: ${statusColors[zone.status]}">${zone.status}</span><br>
+            ${zone.problems_count > 0 ? `<strong>Активных проблем:</strong> ${zone.problems_count}<br>` : ''}
         </div>
-    `;
+        <p style="margin: 10px 0; font-size: 14px; color: #666;">${zone.description || ''}</p>
+        <div style="margin-top: 15px;">
+            <button onclick="reportProblem(${zone.id})"
+                    style="width: 100%; padding: 12px; background: #ff9800; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <i class="fas fa-exclamation-triangle"></i> Сообщить о проблеме
+            </button>
+        </div>
+    </div>
+`;
 
     marker.bindPopup(popupContent);
     marker.zoneId = zone.id;

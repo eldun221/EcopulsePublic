@@ -975,13 +975,13 @@ def get_dictionary(dict_type):
     conn = get_db()
 
     if dict_type == 'cities':
-        data = conn.execute('SELECT * FROM cities WHERE is_active = 1 ORDER BY name').fetchall()
+        data = conn.execute('SELECT * FROM cities ORDER BY name').fetchall()
     elif dict_type == 'zone_types':
-        data = conn.execute('SELECT * FROM zone_types WHERE is_active = 1 ORDER BY name').fetchall()
+        data = conn.execute('SELECT * FROM zone_types ORDER BY name').fetchall()
     elif dict_type == 'statuses':
-        data = conn.execute('SELECT * FROM zone_statuses WHERE is_active = 1 ORDER BY priority DESC').fetchall()
+        data = conn.execute('SELECT * FROM zone_statuses ORDER BY name').fetchall()
     elif dict_type == 'problem_types':
-        data = conn.execute('SELECT * FROM problem_types WHERE is_active = 1 ORDER BY name').fetchall()
+        data = conn.execute('SELECT * FROM problem_types ORDER BY name').fetchall()
     else:
         conn.close()
         return jsonify({'error': 'Invalid dictionary type'}), 400
@@ -990,8 +990,8 @@ def get_dictionary(dict_type):
     return jsonify([row_to_dict(row) for row in data])
 
 
-@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['PUT', 'DELETE'])
-def manage_dictionary_item(dict_type, item_id):
+@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>/toggle', methods=['POST'])
+def toggle_dictionary_item(dict_type, item_id):
     user = session.get('user')
     if not user or user.get('role') not in ['super_admin', 'junior_admin']:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -1010,36 +1010,54 @@ def manage_dictionary_item(dict_type, item_id):
         conn.close()
         return jsonify({'error': 'Invalid dictionary type'}), 400
 
-    if request.method == 'PUT':
-        data = request.get_json()
-
-        # Определяем поля для обновления в зависимости от таблицы
-        if table == 'cities':
-            conn.execute('''
-                UPDATE cities SET name = ?, lat = ?, lng = ?, zoom = ?, is_active = ?
-                WHERE id = ?
-            ''', (data['name'], data['lat'], data['lng'], data['zoom'], data.get('is_active', 1), item_id))
-        elif table == 'zone_statuses':
-            conn.execute('''
-                UPDATE zone_statuses SET name = ?, color = ?, icon = ?, priority = ?, is_active = ?
-                WHERE id = ?
-            ''', (data['name'], data['color'], data['icon'], data['priority'], data.get('is_active', 1), item_id))
-        else:
-            conn.execute(f'''
-                UPDATE {table} SET name = ?, description = ?, is_active = ?
-                WHERE id = ?
-            ''', (data['name'], data.get('description'), data.get('is_active', 1), item_id))
-
-        conn.commit()
+    # Получаем текущее состояние
+    current = conn.execute(f'SELECT is_active FROM {table} WHERE id = ?', (item_id,)).fetchone()
+    if not current:
         conn.close()
-        return jsonify({'success': True, 'message': 'Элемент обновлен'})
+        return jsonify({'error': 'Элемент не найден'}), 404
 
-    elif request.method == 'DELETE':
-        # Вместо удаления помечаем как неактивный
-        conn.execute(f'UPDATE {table} SET is_active = 0 WHERE id = ?', (item_id,))
-        conn.commit()
+    new_active = 0 if current['is_active'] == 1 else 1
+    conn.execute(f'UPDATE {table} SET is_active = ? WHERE id = ?', (new_active, item_id))
+    conn.commit()
+    conn.close()
+
+    action = 'активирован' if new_active == 1 else 'деактивирован'
+    return jsonify({'success': True, 'message': f'Элемент {action}'})
+
+
+@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['DELETE'])
+def delete_dictionary_item(dict_type, item_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+
+    table_map = {
+        'cities': 'cities',
+        'zone_types': 'zone_types',
+        'statuses': 'zone_statuses',
+        'problem_types': 'problem_types'
+    }
+
+    table = table_map.get(dict_type)
+    if not table:
         conn.close()
-        return jsonify({'success': True, 'message': 'Элемент деактивирован'})
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+
+    # Проверяем, есть ли элемент
+    item = conn.execute(f'SELECT * FROM {table} WHERE id = ?', (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({'error': 'Элемент не найден'}), 404
+
+    # Удаляем элемент
+    conn.execute(f'DELETE FROM {table} WHERE id = ?', (item_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True, 'message': 'Элемент полностью удален'})
+
 
 
 @app.route('/api/admin/dictionaries/<dict_type>', methods=['POST'])
