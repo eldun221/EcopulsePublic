@@ -1,7 +1,6 @@
 // static/js/add_zone.js
 let mapPreview = null;
 let previewMarker = null;
-let uploadedPhotos = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('zone-form');
@@ -174,31 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Восстанавливаем данные формы при загрузке
     restoreFormData();
 
-    // Загрузка фотографий
-    uploadArea.addEventListener('click', () => photoInput.click());
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadArea.style.borderColor = 'var(--primary-color)';
-        uploadArea.style.background = 'rgba(46, 125, 50, 0.05)';
-    });
-
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.style.borderColor = '#ddd';
-        uploadArea.style.background = '';
-    });
-
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.style.borderColor = '#ddd';
-        uploadArea.style.background = '';
-
-        const files = e.dataTransfer.files;
-        handlePhotoUpload(files);
-    });
-
-    photoInput.addEventListener('change', (e) => {
-        handlePhotoUpload(e.target.files);
-    });
 
     function handlePhotoUpload(files) {
         const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -350,63 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    function generatePreviewHTML(data) {
-        const statusColors = {
-            'отличный': '#4caf50',
-            'хороший': '#8bc34a',
-            'удовлетворительный': '#ffeb3b',
-            'требует ухода': '#ff9800',
-            'критический': '#f44336'
-        };
 
-        return `
-            <div class="preview-content">
-                <h3>${data.name}</h3>
-
-                <div class="preview-grid">
-                    <div class="preview-item">
-                        <strong>Город:</strong> ${data.city}
-                    </div>
-                    <div class="preview-item">
-                        <strong>Тип зоны:</strong> ${data.type}
-                    </div>
-                    <div class="preview-item">
-                        <strong>Координаты:</strong> ${data.lat}, ${data.lng}
-                    </div>
-                    <div class="preview-item">
-                        <strong>Состояние:</strong>
-                        <span style="color: ${statusColors[data.status] || '#666'}">
-                            ${data.status}
-                        </span>
-                    </div>
-                    ${data.address ? `<div class="preview-item"><strong>Адрес:</strong> ${data.address}</div>` : ''}
-                </div>
-
-                <div class="preview-section">
-                    <h4>Описание:</h4>
-                    <p>${data.description}</p>
-                </div>
-
-                ${data.photos.length > 0 ? `
-                <div class="preview-section">
-                    <h4>Фотографии (${data.photos.length}):</h4>
-                    <div class="preview-photos">
-                        ${data.photos.map((photo, i) => `
-                            <div class="preview-photo">
-                                <img src="${photo.data}" alt="Фото ${i + 1}">
-                                <small>${photo.name}</small>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : ''}
-
-                <div class="preview-notice">
-                    <p><i class="fas fa-info-circle"></i> Заявка будет рассмотрена администратором в течение 3 рабочих дней.</p>
-                </div>
-            </div>
-        `;
-    }
 
     // Закрытие модального окна
     document.querySelectorAll('.close-modal').forEach(btn => {

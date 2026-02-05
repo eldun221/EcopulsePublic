@@ -196,6 +196,7 @@ function pickLocationOnMap() {
 }
 
 // Загрузка пользователей
+// Загрузка пользователей
 async function loadUsers() {
     try {
         const response = await fetch('/api/admin/users');
@@ -245,7 +246,7 @@ async function loadUsers() {
                                 <button class="btn-promote-moderator action-btn" onclick="promoteToModerator(${user.id}, '${user.name}')" title="Назначить модератором">
                                     <i class="fas fa-user-check"></i>
                                 </button>
-                                <button class="btn-demote action-btn" onclick="demoteUser(${user.id}, '${user.name}', '${user.role}')" title="Понизить/удалить" disabled>
+                                <button class="btn-demote action-btn" onclick="demoteUser(${user.id}, '${user.name}', '${user.role}')" title="Понизить/удалить">
                                     <i class="fas fa-user-minus"></i>
                                 </button>
                             `;
@@ -271,9 +272,6 @@ async function loadUsers() {
                             actions = `
                                 <button class="btn-promote-moderator action-btn" onclick="promoteToModerator(${user.id}, '${user.name}')" title="Назначить модератором">
                                     <i class="fas fa-user-check"></i>
-                                </button>
-                                <button class="btn-demote action-btn" onclick="demoteUser(${user.id}, '${user.name}', '${user.role}')" title="Понизить" disabled>
-                                    <i class="fas fa-user-minus"></i>
                                 </button>
                             `;
                         } else if (user.role === 'moderator') {
@@ -648,6 +646,7 @@ async function editZone(zoneId) {
 }
 
 // Обновление зоны
+// Обновление зоны
 async function updateZone(zoneId) {
     const formData = {
         name: document.getElementById(`edit-name-${zoneId}`).value,
@@ -660,8 +659,8 @@ async function updateZone(zoneId) {
     };
 
     // Валидация координат с исправлением запятых на точки
-    const lat = parseFloat(formData.lat.replace(',', '.'));
-    const lng = parseFloat(formData.lng.replace(',', '.'));
+    const lat = parseFloat(formData.lat.replace(',', '.').trim());
+    const lng = parseFloat(formData.lng.replace(',', '.').trim());
 
     if (isNaN(lat) || lat < -90 || lat > 90) {
         alert('Пожалуйста, укажите корректную широту (-90 до 90)');
@@ -676,6 +675,12 @@ async function updateZone(zoneId) {
     // Обновляем значения координат с правильным форматом
     formData.lat = lat;
     formData.lng = lng;
+
+    // Проверяем, что все обязательные поля заполнены
+    if (!formData.name || !formData.city || !formData.type || !formData.status) {
+        alert('Пожалуйста, заполните все обязательные поля');
+        return;
+    }
 
     try {
         const response = await fetch(`/api/admin/zone/${zoneId}`, {

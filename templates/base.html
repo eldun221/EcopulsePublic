@@ -36,7 +36,7 @@
                 {% endif %} -->
 
                 <div class="logo">
-                    <i class="fas fa-tree"></i>
+                    <img src="{{ url_for('static', filename='img/tree-icon.png') }}" alt="Логотип ЭКОПУЛЬС" class="logo-img">
                     <h1 id="site-title">ЭКОПУЛЬС {{ city if city else '' }}</h1>
                 </div>
                 {% if request.path == '/' %}
@@ -93,8 +93,8 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>© 2024 ЭКОПУЛЬС ГОРОДОВ. Система мониторинга зелёных пространств</p>
-            <p>Техническая поддержка: support@ecopulse.ru</p>
+            <p>© 2026 ЭКОПУЛЬС ГОРОДОВ. Система мониторинга зелёных пространств</p>
+            <p>Техническая поддержка: (Вставьте почту)</p>
         </footer>
     </div>
 

@@ -57,9 +57,10 @@ body {
     gap: 1rem;
 }
 
-.logo i {
-    font-size: 2rem;
-    color: var(--primary-color);
+.logo-img {
+    height: 2.5rem; /* Размер как у предыдущей иконки */
+    width: auto;
+    object-fit: contain;
 }
 
 .logo h1 {
@@ -67,7 +68,25 @@ body {
     font-weight: 600;
     color: var(--primary-dark);
 }
+/* Для мобильных устройств */
+@media (max-width: 768px) {
+    .logo-img {
+        height: 2rem;
+    }
 
+    .logo h1 {
+        font-size: 1.2rem;
+    }
+    .map-legend {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo-img {
+        height: 1.8rem;
+    }
+}
 .city-selector select {
     padding: 0.5rem 1rem;
     border: 1px solid var(--border-color);

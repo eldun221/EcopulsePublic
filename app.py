@@ -1108,5 +1108,57 @@ def add_dictionary_item(dict_type):
         return jsonify({'error': 'Элемент с таким именем уже существует'}), 400
 
 
+
+@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['PUT'])
+def update_dictionary_item(dict_type, item_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    conn = get_db()
+
+    table_map = {
+        'cities': 'cities',
+        'zone_types': 'zone_types',
+        'statuses': 'zone_statuses',
+        'problem_types': 'problem_types'
+    }
+
+    table = table_map.get(dict_type)
+    if not table:
+        conn.close()
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+
+    # Проверяем, существует ли элемент
+    item = conn.execute(f'SELECT * FROM {table} WHERE id = ?', (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({'error': 'Элемент не найден'}), 404
+
+    try:
+        if table == 'cities':
+            conn.execute('''
+                UPDATE cities SET name = ?, lat = ?, lng = ?, zoom = ?, is_active = ?
+                WHERE id = ?
+            ''', (data['name'], data['lat'], data['lng'], data.get('zoom', 12), data.get('is_active', 1), item_id))
+        elif table == 'zone_statuses':
+            conn.execute('''
+                UPDATE zone_statuses SET name = ?, color = ?, icon = ?, priority = ?, is_active = ?
+                WHERE id = ?
+            ''', (data['name'], data['color'], data['icon'], data.get('priority', 0), data.get('is_active', 1), item_id))
+        else:
+            conn.execute(f'''
+                UPDATE {table} SET name = ?, description = ?, is_active = ?
+                WHERE id = ?
+            ''', (data['name'], data.get('description'), data.get('is_active', 1), item_id))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Элемент обновлен'})
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
