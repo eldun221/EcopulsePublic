@@ -72,55 +72,18 @@
                 </div>
 
                 <div class="map-preview-container">
-                    <h4>Предпросмотр местоположения</h4>
-                    <div class="map-preview" id="map-preview">
-                        <div class="map-placeholder">
-                            <i class="fas fa-map"></i>
-                            <p>Укажите координаты для предпросмотра</p>
-                        </div>
-                    </div>
-                    <small class="hint">Карта покажет примерное местоположение указанных координат</small>
-                </div>
-            </div>
-
-            <div class="form-section">
-                <h3><i class="fas fa-expand-arrows-alt"></i> Характеристики</h3>
-
-                <div class="form-group">
-                    <label for="status">Текущее состояние</label>
-                    <select id="status" name="status">
-                        {% for status in statuses.keys() %}
-                        <option value="{{ status }}">{{ status|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-                    <script>
-                        window.citiesData = {{ cities|tojson }};
-                    </script>
+                    <h4>Выберите местоположение на карте</h4>
+                    <div class="map-preview" id="admin-map-preview" style="height: 300px; margin-bottom: 1rem;"></div>
+                    <small class="hint">Перетащите маркер для точного позиционирования</small>
                 </div>
 
-                <div class="form-group">
-                    <label for="description">Описание зоны *</label>
-                    <textarea id="description" name="description" rows="4"
-                              placeholder="Опишите зону: что здесь находится, какие растения, инфраструктура и т.д."
-                              required></textarea>
-                    <small class="hint">Чем подробнее описание, тем быстрее пройдет модерация</small>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Сохранить зону
+                    </button>
                 </div>
-            </div>
-
-            <div class="form-actions">
-                <button type="button" class="btn btn-outline" id="preview-btn">
-                    <i class="fas fa-eye"></i> Предпросмотр
-                </button>
-
-                <button type="submit" class="btn btn-primary" id="submit-btn">
-                    <i class="fas fa-paper-plane"></i> Отправить заявку
-                </button>
-            </div>
-
-            <div class="form-notice">
-                <p><i class="fas fa-info-circle"></i> После отправки заявка будет рассмотрена администратором в течение 3 рабочих дней.</p>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 

@@ -1,3 +1,5 @@
+// static/js/admin.js
+
 // Функции для работы с админ-панелью
 
 // Глобальные переменные для передачи данных из шаблона
@@ -5,6 +7,10 @@ let currentUser = window.templateData.user || {};
 let citiesData = window.templateData.cities || {};
 let zoneTypes = window.templateData.zone_types || [];
 let statuses = window.templateData.statuses || {};
+
+// Переменные для карты в админской форме
+let adminMap = null;
+let adminMarker = null;
 
 // Основная инициализация
 document.addEventListener('DOMContentLoaded', function() {
@@ -15,12 +21,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Открытие модального окна добавления зоны
     document.getElementById('open-add-zone-modal').addEventListener('click', function() {
         document.getElementById('add-zone-admin-modal').classList.add('active');
+        // Небольшая задержка, чтобы модалка успела отрисоваться
+        setTimeout(initAdminAddZoneMap, 200);
     });
 
     // Закрытие модальных окон
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.addEventListener('click', function() {
             this.closest('.modal').classList.remove('active');
+            // Если закрываем модалку добавления зоны – уничтожаем карту, чтобы избежать конфликтов
+            if (this.closest('.modal')?.id === 'add-zone-admin-modal') {
+                if (adminMap) {
+                    adminMap.remove();
+                    adminMap = null;
+                }
+            }
         });
     });
 
@@ -28,6 +43,10 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.addEventListener('click', function(e) {
             if (e.target === this) {
                 this.classList.remove('active');
+                if (this.id === 'add-zone-admin-modal' && adminMap) {
+                    adminMap.remove();
+                    adminMap = null;
+                }
             }
         });
     });
@@ -37,15 +56,12 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const tabId = this.dataset.tab;
 
-            // Убираем активный класс у всех табов
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-            // Добавляем активный класс текущему табу
             this.classList.add('active');
             document.getElementById(`${tabId}-tab`).classList.add('active');
 
-            // Загружаем данные для таба
             if (tabId === 'users') {
                 loadUsers();
             } else if (tabId === 'reports') {
@@ -148,15 +164,12 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const dictType = this.dataset.dict;
 
-            // Убираем активный класс у всех кнопок
             document.querySelectorAll('[data-dict]').forEach(b => {
                 b.classList.remove('active-dict');
             });
 
-            // Добавляем активный класс текущей кнопке
             this.classList.add('active-dict');
 
-            // Загружаем данные справочника
             loadDictionary(dictType);
         });
     });
@@ -168,11 +181,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (document.getElementById('admin-zone-lat')) {
                 document.getElementById('admin-zone-lat').value = location.lat;
                 document.getElementById('admin-zone-lng').value = location.lng;
+                // Если карта уже инициализирована, обновим маркер
+                if (adminMarker) {
+                    adminMarker.setLatLng([location.lat, location.lng]);
+                    adminMap.setView([location.lat, location.lng], 15);
+                }
             }
             sessionStorage.removeItem('pickedLocation');
             sessionStorage.removeItem('adminAddingZone');
 
-            // Показываем уведомление
             if (document.getElementById('add-zone-admin-modal').classList.contains('active')) {
                 alert('Координаты успешно загружены из карты!');
             }
@@ -182,21 +199,94 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Функция для выбора местоположения на карте
+// ---------- Функция для выбора местоположения на карте (устаревшая, теперь используется встроенная карта) ----------
 function pickLocationOnMap() {
     // Сохраняем текущее состояние формы
     sessionStorage.setItem('adminAddingZone', 'true');
-
-    // Открываем главную страницу с картой в новой вкладке
     const city = document.getElementById('admin-zone-city').value || 'Барнаул';
     const url = `/?city=${encodeURIComponent(city)}&pick_location=true`;
     window.open(url, '_blank');
-
     alert('Выберите местоположение на карте в новой вкладке. Координаты автоматически подставятся в форму.');
 }
 
-// Загрузка пользователей
-// Загрузка пользователей
+// ---------- Функции для карты в админской форме добавления зоны ----------
+function initAdminAddZoneMap() {
+    const mapContainer = document.getElementById('admin-map-preview');
+    if (!mapContainer) return;
+
+    // Если карта уже создана, удаляем её
+    if (adminMap) {
+        adminMap.remove();
+        adminMap = null;
+    }
+
+    // Определяем начальные координаты: из полей ввода или из выбранного города
+    let lat = 53.347996; // Барнаул по умолчанию
+    let lng = 83.779836;
+    const citySelect = document.getElementById('admin-zone-city');
+    const latInput = document.getElementById('admin-zone-lat');
+    const lngInput = document.getElementById('admin-zone-lng');
+
+    // Если поля уже заполнены, используем их
+    if (latInput.value && lngInput.value) {
+        const parsedLat = parseFloat(latInput.value);
+        const parsedLng = parseFloat(lngInput.value);
+        if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+            lat = parsedLat;
+            lng = parsedLng;
+        }
+    } else if (citySelect && citySelect.value && citiesData[citySelect.value]) {
+        // Иначе из выбранного города
+        lat = citiesData[citySelect.value].lat;
+        lng = citiesData[citySelect.value].lng;
+    }
+
+    // Создаём карту
+    adminMap = L.map(mapContainer).setView([lat, lng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(adminMap);
+
+    // Маркер
+    adminMarker = L.marker([lat, lng], { draggable: true }).addTo(adminMap);
+
+    // Обновляем поля при перемещении маркера
+    adminMarker.on('dragend', function(e) {
+        const pos = e.target.getLatLng();
+        latInput.value = pos.lat.toFixed(6);
+        lngInput.value = pos.lng.toFixed(6);
+    });
+
+    // Слушаем изменение города, чтобы переместить карту
+    if (citySelect) {
+        citySelect.addEventListener('change', function() {
+            const city = this.value;
+            if (citiesData[city]) {
+                const newLat = citiesData[city].lat;
+                const newLng = citiesData[city].lng;
+                adminMap.setView([newLat, newLng], 13);
+                adminMarker.setLatLng([newLat, newLng]);
+                latInput.value = newLat.toFixed(6);
+                lngInput.value = newLng.toFixed(6);
+            }
+        });
+    }
+
+    // Слушаем изменения полей координат для синхронизации маркера
+    latInput.addEventListener('input', updateAdminMarkerFromInputs);
+    lngInput.addEventListener('input', updateAdminMarkerFromInputs);
+}
+
+function updateAdminMarkerFromInputs() {
+    const lat = parseFloat(document.getElementById('admin-zone-lat').value);
+    const lng = parseFloat(document.getElementById('admin-zone-lng').value);
+    if (!isNaN(lat) && !isNaN(lng) && adminMarker && adminMap) {
+        adminMarker.setLatLng([lat, lng]);
+        adminMap.setView([lat, lng], 15);
+    }
+}
+
+// ---------- Загрузка пользователей ----------
 async function loadUsers() {
     try {
         const response = await fetch('/api/admin/users');
@@ -214,9 +304,7 @@ async function loadUsers() {
 
         if (tbody) {
             tbody.innerHTML = users.map(user => {
-                // Определяем бейдж роли
                 let roleBadge = '';
-
                 switch(user.role) {
                     case 'super_admin':
                         roleBadge = '<span class="role-badge-cell role-badge-super_admin"><i class="fas fa-crown"></i> Главный администратор</span>';
@@ -231,13 +319,11 @@ async function loadUsers() {
                         roleBadge = '<span class="role-badge-cell role-badge-user"><i class="fas fa-user"></i> Пользователь</span>';
                 }
 
-                // Определяем доступные действия в зависимости от роли текущего пользователя
                 let actions = '';
                 const isCurrentUser = currentUser.id === user.id;
 
                 if (!isCurrentUser) {
                     if (currentUserRole === 'super_admin') {
-                        // Супер-администратор может назначать младших админов и модераторов, понижать всех кроме других супер-админов
                         if (user.role === 'user') {
                             actions = `
                                 <button class="btn-promote-junior action-btn" onclick="promoteToJuniorAdmin(${user.id}, '${user.name}')" title="Назначить младшим администратором">
@@ -267,7 +353,6 @@ async function loadUsers() {
                             `;
                         }
                     } else if (currentUserRole === 'junior_admin') {
-                        // Младший администратор может назначать и понижать только модераторов
                         if (user.role === 'user') {
                             actions = `
                                 <button class="btn-promote-moderator action-btn" onclick="promoteToModerator(${user.id}, '${user.name}')" title="Назначить модератором">
@@ -313,19 +398,18 @@ async function loadUsers() {
     }
 }
 
-// Назначение пользователя младшим администратором
+// ---------- Назначение младшим администратором ----------
 function promoteToJuniorAdmin(userId, userName) {
     document.getElementById('promote-junior-user-id').value = userId;
     document.getElementById('promote-junior-user-name').value = userName;
     document.getElementById('promote-junior-admin-modal').classList.add('active');
 }
 
-// Назначение пользователя модератором
+// ---------- Назначение модератором ----------
 function promoteToModerator(userId, userName) {
     document.getElementById('promote-user-id').value = userId;
     document.getElementById('promote-user-name').value = userName;
 
-    // Для супер-администратора показываем поле пароля
     if (currentUser.role === 'super_admin') {
         document.getElementById('admin-password').required = true;
         document.getElementById('admin-password').style.display = 'block';
@@ -339,32 +423,29 @@ function promoteToModerator(userId, userName) {
     document.getElementById('promote-moderator-modal').classList.add('active');
 }
 
-// Понижение пользователя
+// ---------- Понижение пользователя ----------
 function demoteUser(userId, userName, userRole) {
     document.getElementById('demote-user-id').value = userId;
     document.getElementById('demote-user-name').value = userName;
     document.getElementById('demote-user-role').value = userRole;
 
-    // Скрываем поле пароля по умолчанию
     const passwordGroup = document.getElementById('admin-password-group');
     if (passwordGroup) {
         passwordGroup.style.display = 'none';
         document.getElementById('delete-admin-password').required = false;
     }
 
-    // Сбрасываем выбранное действие
     document.getElementById('confirm-demote').value = '';
 
     document.getElementById('demote-user-modal').classList.add('active');
 }
 
-// Загрузка статистики
+// ---------- Загрузка статистики ----------
 async function loadStatistics() {
     try {
         const response = await fetch('/api/admin/statistics');
         const stats = await response.json();
 
-        // Системная статистика
         const systemStats = document.getElementById('system-stats');
         if (systemStats) {
             systemStats.innerHTML = `
@@ -376,7 +457,6 @@ async function loadStatistics() {
             `;
         }
 
-        // Активные проблемы
         const activeProblems = document.getElementById('active-problems');
         if (activeProblems) {
             if (stats.problems_by_type && stats.problems_by_type.length > 0) {
@@ -390,7 +470,6 @@ async function loadStatistics() {
             }
         }
 
-        // Статистика по городам
         const cityStats = document.getElementById('city-stats');
         if (cityStats && stats.zones_by_city) {
             cityStats.innerHTML = Object.entries(stats.zones_by_city)
@@ -405,7 +484,7 @@ async function loadStatistics() {
     }
 }
 
-// Фильтрация зон
+// ---------- Фильтрация зон ----------
 function filterZones() {
     const searchTerm = document.getElementById('zone-search')?.value.toLowerCase() || '';
     const city = document.getElementById('city-filter')?.value || '';
@@ -426,7 +505,7 @@ function filterZones() {
     });
 }
 
-// Просмотр деталей заявки
+// ---------- Просмотр деталей заявки ----------
 async function viewRequestDetails(requestId) {
     try {
         const response = await fetch(`/api/admin/request/${requestId}`);
@@ -468,7 +547,7 @@ async function viewRequestDetails(requestId) {
     }
 }
 
-// Одобрение заявки
+// ---------- Одобрение заявки ----------
 async function approveRequest(requestId) {
     if (!confirm('Вы уверены, что хотите принять эту заявку?')) return;
 
@@ -491,7 +570,7 @@ async function approveRequest(requestId) {
     }
 }
 
-// Отклонение заявки
+// ---------- Отклонение заявки ----------
 async function rejectRequest(requestId) {
     const reason = prompt('Укажите причину отклонения заявки:');
     if (reason === null) return;
@@ -519,7 +598,7 @@ async function rejectRequest(requestId) {
     }
 }
 
-// Просмотр зоны на карте
+// ---------- Просмотр зоны на карте ----------
 async function viewZoneOnMap(zoneId) {
     try {
         const response = await fetch(`/api/admin/zone/${zoneId}`);
@@ -530,7 +609,6 @@ async function viewZoneOnMap(zoneId) {
             return;
         }
 
-        // Открываем карту в новой вкладке с координатами зоны
         const url = `/?city=${encodeURIComponent(zone.city)}&lat=${zone.lat}&lng=${zone.lng}&zoom=16&highlight=${zoneId}`;
         window.open(url, '_blank');
     } catch (error) {
@@ -539,7 +617,7 @@ async function viewZoneOnMap(zoneId) {
     }
 }
 
-// Редактирование зоны
+// ---------- Редактирование зоны (исправлен баг с кавычками) ----------
 async function editZone(zoneId) {
     try {
         const response = await fetch(`/api/admin/zone/${zoneId}`);
@@ -550,12 +628,23 @@ async function editZone(zoneId) {
             return;
         }
 
+        // Экранирование для безопасной вставки в HTML
+        const escapeHtml = (str) => {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
+
         const formHtml = `
             <form id="edit-zone-form-${zoneId}">
                 <div class="form-row">
                     <div class="form-group">
                         <label for="edit-name-${zoneId}">Название зоны *</label>
-                        <input type="text" id="edit-name-${zoneId}" value="${zone.name}" required class="admin-form-input">
+                        <input type="text" id="edit-name-${zoneId}" value="${escapeHtml(zone.name)}" required class="admin-form-input">
                     </div>
                     <div class="form-group">
                         <label for="edit-city-${zoneId}">Город *</label>
@@ -591,20 +680,20 @@ async function editZone(zoneId) {
                     <div class="form-group">
                         <label for="edit-lat-${zoneId}">Широта *</label>
                         <input type="text" id="edit-lat-${zoneId}" value="${zone.lat}" required
-                               pattern="^-?\d+(\.\d+)?$"
+                               pattern="-?\\d+(\\.\\d+)?"
                                title="Только цифры и точка" class="admin-form-input">
                     </div>
                     <div class="form-group">
                         <label for="edit-lng-${zoneId}">Долгота *</label>
                         <input type="text" id="edit-lng-${zoneId}" value="${zone.lng}" required
-                               pattern="^-?\d+(\.\d+)?$"
+                               pattern="-?\\d+(\\.\\d+)?"
                                title="Только цифры и точка" class="admin-form-input">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="edit-description-${zoneId}">Описание *</label>
-                    <textarea id="edit-description-${zoneId}" rows="4" required class="admin-form-input">${zone.description || ''}</textarea>
+                    <textarea id="edit-description-${zoneId}" rows="4" required class="admin-form-input">${escapeHtml(zone.description || '')}</textarea>
                 </div>
 
                 <div class="form-actions">
@@ -645,8 +734,7 @@ async function editZone(zoneId) {
     }
 }
 
-// Обновление зоны
-// Обновление зоны
+// ---------- Обновление зоны ----------
 async function updateZone(zoneId) {
     const formData = {
         name: document.getElementById(`edit-name-${zoneId}`).value,
@@ -658,25 +746,28 @@ async function updateZone(zoneId) {
         description: document.getElementById(`edit-description-${zoneId}`).value
     };
 
-    // Валидация координат с исправлением запятых на точки
-    const lat = parseFloat(formData.lat.replace(',', '.').trim());
-    const lng = parseFloat(formData.lng.replace(',', '.').trim());
+    let latStr = formData.lat.toString().trim();
+    let lngStr = formData.lng.toString().trim();
+
+    latStr = latStr.replace(/,/g, '.').replace(/[^\d.-]/g, '');
+    lngStr = lngStr.replace(/,/g, '.').replace(/[^\d.-]/g, '');
+
+    const lat = parseFloat(latStr);
+    const lng = parseFloat(lngStr);
 
     if (isNaN(lat) || lat < -90 || lat > 90) {
-        alert('Пожалуйста, укажите корректную широту (-90 до 90)');
+        alert('Пожалуйста, укажите корректную широту (-90 до 90). Получено: ' + formData.lat);
         return;
     }
 
     if (isNaN(lng) || lng < -180 || lng > 180) {
-        alert('Пожалуйста, укажите корректную долготу (-180 до 180)');
+        alert('Пожалуйста, укажите корректную долготу (-180 до 180). Получено: ' + formData.lng);
         return;
     }
 
-    // Обновляем значения координат с правильным форматом
     formData.lat = lat;
     formData.lng = lng;
 
-    // Проверяем, что все обязательные поля заполнены
     if (!formData.name || !formData.city || !formData.type || !formData.status) {
         alert('Пожалуйста, заполните все обязательные поля');
         return;
@@ -698,7 +789,12 @@ async function updateZone(zoneId) {
             document.getElementById('edit-zone-modal').classList.remove('active');
             location.reload();
         } else {
-            alert(data.error || 'Ошибка обновления зоны');
+            let errorMessage = data.error || 'Ошибка обновления зоны';
+            if (data.details) {
+                errorMessage += '\nДетали: ' + JSON.stringify(data.details);
+            }
+            alert(errorMessage);
+            console.error('Ошибка обновления зоны:', data);
         }
     } catch (error) {
         console.error('Ошибка обновления зоны:', error);
@@ -706,7 +802,7 @@ async function updateZone(zoneId) {
     }
 }
 
-// Удаление зоны
+// ---------- Удаление зоны ----------
 async function deleteZone(zoneId) {
     if (!confirm('Вы уверены, что хотите удалить эту зону? Все связанные отчеты и история обслуживания также будут удалены.')) return;
 
@@ -719,12 +815,10 @@ async function deleteZone(zoneId) {
 
         if (data.success) {
             alert('Зона удалена!');
-            // Удаляем строку из таблицы без перезагрузки страницы
             const row = document.getElementById('zone-row-' + zoneId);
             if (row) {
                 row.remove();
             }
-            // Обновляем статистику
             updateZoneStats();
         } else {
             alert(data.error || 'Ошибка удаления зоны');
@@ -735,7 +829,7 @@ async function deleteZone(zoneId) {
     }
 }
 
-// Функция для обновления статистики зон
+// ---------- Обновление статистики зон ----------
 function updateZoneStats() {
     const zoneCount = document.querySelectorAll('#zones-tab tbody tr').length;
     const statCard = document.querySelector('.stat-card:nth-child(2) .stat-value');
@@ -744,7 +838,7 @@ function updateZoneStats() {
     }
 }
 
-// Генерация системного отчета
+// ---------- Генерация системного отчета ----------
 function generateSystemReport() {
     const report = {
         title: 'Системный отчет ЭКОПУЛЬС',
@@ -761,8 +855,7 @@ function generateSystemReport() {
     URL.revokeObjectURL(url);
 }
 
-// Функция для загрузки справочника
-// Загрузка справочника
+// ---------- Загрузка справочника ----------
 async function loadDictionary(dictType) {
     try {
         const response = await fetch(`/api/dictionaries/${dictType}`);
@@ -781,7 +874,6 @@ async function loadDictionary(dictType) {
             return;
         }
 
-        // Определяем заголовки в зависимости от типа справочника
         let headers = [];
         let tableRows = '';
 
@@ -790,7 +882,7 @@ async function loadDictionary(dictType) {
                 headers = ['№', 'Название', 'Широта', 'Долгота', 'Зум', 'Статус', 'Действия'];
                 tableRows = data.map((item, index) => `
                     <tr data-id="${item.id}" data-active="${item.is_active}">
-                        <td>${item.display_id || index + 1}</td>
+                        <td>${index + 1}</td>
                         <td>${item.name}</td>
                         <td>${item.lat}</td>
                         <td>${item.lng}</td>
@@ -805,8 +897,43 @@ async function loadDictionary(dictType) {
                                 <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn-delete action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')">
-                                    <i class="fas fa-trash"></i>
+                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
+                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
+                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
+                                </button>
+                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+                break;
+
+            case 'zone_types':
+                headers = ['№', 'Название', 'Иконка', 'Описание', 'Статус', 'Действия'];
+                tableRows = data.map((item, index) => `
+                    <tr data-id="${item.id}" data-active="${item.is_active}">
+                        <td>${index + 1}</td>
+                        <td>${item.name}</td>
+                        <td>${item.icon || '—'}</td>
+                        <td>${item.description || '—'}</td>
+                        <td>
+                            <span class="status-badge ${item.is_active ? 'active' : 'inactive'}">
+                                ${item.is_active ? 'Активен' : 'Неактивен'}
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <div class="actions-inline">
+                                <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
+                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
+                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
+                                </button>
+                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
+                                    <i class="fas fa-trash-alt"></i>
                                 </button>
                             </div>
                         </td>
@@ -818,7 +945,7 @@ async function loadDictionary(dictType) {
                 headers = ['№', 'Название', 'Цвет', 'Иконка', 'Приоритет', 'Статус', 'Действия'];
                 tableRows = data.map((item, index) => `
                     <tr data-id="${item.id}" data-active="${item.is_active}">
-                        <td>${item.display_id || index + 1}</td>
+                        <td>${index + 1}</td>
                         <td>${item.name}</td>
                         <td>
                             <span class="color-preview" style="background-color: ${item.color}"></span>
@@ -836,20 +963,18 @@ async function loadDictionary(dictType) {
                                 <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn-delete action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <!-- Кнопки активации/деактивации и удаления удалены по заданию -->
                             </div>
                         </td>
                     </tr>
                 `).join('');
                 break;
 
-            default:
+            case 'problem_types':
                 headers = ['№', 'Название', 'Описание', 'Статус', 'Действия'];
                 tableRows = data.map((item, index) => `
                     <tr data-id="${item.id}" data-active="${item.is_active}">
-                        <td>${item.display_id || index + 1}</td>
+                        <td>${index + 1}</td>
                         <td>${item.name}</td>
                         <td>${item.description || '—'}</td>
                         <td>
@@ -862,8 +987,42 @@ async function loadDictionary(dictType) {
                                 <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn-delete action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')">
-                                    <i class="fas fa-trash"></i>
+                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
+                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
+                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
+                                </button>
+                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+                break;
+
+            default:
+                headers = ['№', 'Название', 'Описание', 'Статус', 'Действия'];
+                tableRows = data.map((item, index) => `
+                    <tr data-id="${item.id}" data-active="${item.is_active}">
+                        <td>${index + 1}</td>
+                        <td>${item.name}</td>
+                        <td>${item.description || '—'}</td>
+                        <td>
+                            <span class="status-badge ${item.is_active ? 'active' : 'inactive'}">
+                                ${item.is_active ? 'Активен' : 'Неактивен'}
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <div class="actions-inline">
+                                <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
+                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
+                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
+                                </button>
+                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
+                                    <i class="fas fa-trash-alt"></i>
                                 </button>
                             </div>
                         </td>
@@ -920,69 +1079,7 @@ async function loadDictionary(dictType) {
     }
 }
 
-// Функция для фильтрации таблицы справочника по статусу
-// Функция для фильтрации таблицы справочника по статусу
-function filterDictionaryTable(dictType) {
-    const filterValue = document.getElementById('dictionary-status-filter').value;
-    const table = document.getElementById(`${dictType}-table`);
-
-    if (!table) return;
-
-    const rows = table.querySelectorAll('tbody tr');
-
-    rows.forEach(row => {
-        const isActive = row.getAttribute('data-active') === '1';
-
-        switch(filterValue) {
-            case 'all':
-                row.style.display = '';
-                break;
-            case 'active':
-                row.style.display = isActive ? '' : 'none';
-                break;
-            case 'inactive':
-                row.style.display = isActive ? 'none' : '';
-                break;
-        }
-    });
-}
-
-// Функция для сортировки таблицы справочника
-function sortDictionaryTable(dictType, sortBy) {
-    const table = document.getElementById(`${dictType}-table`);
-    if (!table) return;
-
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    rows.sort((a, b) => {
-        const aActive = a.getAttribute('data-active') === '1';
-        const bActive = b.getAttribute('data-active') === '1';
-        const aName = a.cells[1].textContent;
-        const bName = b.cells[1].textContent;
-
-        if (sortBy === 'status') {
-            // Сначала активные, потом неактивные
-            if (aActive === bActive) {
-                return aName.localeCompare(bName, 'ru');
-            }
-            return aActive ? -1 : 1;
-        } else if (sortBy === 'name') {
-            // По алфавиту
-            return aName.localeCompare(bName, 'ru');
-        } else if (sortBy === 'id') {
-            // По порядковому номеру
-            const aId = parseInt(a.cells[0].textContent);
-            const bId = parseInt(b.cells[0].textContent);
-            return aId - bId;
-        }
-        return 0;
-    });
-
-    // Очищаем и перезаполняем таблицу
-    rows.forEach(row => tbody.appendChild(row));
-}
-
+// ---------- Получение заголовка справочника ----------
 function getDictionaryTitle(dictType) {
     const titles = {
         'cities': 'Города',
@@ -993,80 +1090,7 @@ function getDictionaryTitle(dictType) {
     return titles[dictType] || dictType;
 }
 
-function getDictionaryTitle(dictType) {
-    const titles = {
-        'cities': 'Города',
-        'zone_types': 'Типы зон',
-        'statuses': 'Статусы зон',
-        'problem_types': 'Типы проблем'
-    };
-    return titles[dictType] || dictType;
-}
-// Сортировка таблицы городов
-function sortCitiesTable(sortBy) {
-    const table = document.getElementById('cities-table');
-    if (!table) return;
-
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    rows.sort((a, b) => {
-        let aValue, bValue;
-        if (sortBy === 'id') {
-            aValue = parseInt(a.cells[0].textContent);
-            bValue = parseInt(b.cells[0].textContent);
-            return aValue - bValue;
-        } else if (sortBy === 'name') {
-            aValue = a.cells[1].textContent;
-            bValue = b.cells[1].textContent;
-            return aValue.localeCompare(bValue, 'ru');
-        }
-        return 0;
-    });
-
-    // Удаляем существующие строки
-    rows.forEach(row => tbody.removeChild(row));
-
-    // Добавляем отсортированные строки
-    rows.forEach(row => tbody.appendChild(row));
-}
-
-// Функция для сортировки таблицы справочника
-function sortDictionaryTable(dictType, sortBy) {
-    const table = document.getElementById(`${dictType}-table`);
-    if (!table) return;
-
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    rows.sort((a, b) => {
-        const aActive = a.getAttribute('data-active') === '1';
-        const bActive = b.getAttribute('data-active') === '1';
-        const aName = a.cells[1].textContent;
-        const bName = b.cells[1].textContent;
-
-        if (sortBy === 'status') {
-            // Сначала активные, потом неактивные
-            if (aActive === bActive) {
-                return aName.localeCompare(bName, 'ru');
-            }
-            return aActive ? -1 : 1;
-        } else if (sortBy === 'name') {
-            // По алфавиту
-            return aName.localeCompare(bName, 'ru');
-        } else if (sortBy === 'id') {
-            // По порядковому номеру
-            const aId = parseInt(a.cells[0].textContent);
-            const bId = parseInt(b.cells[0].textContent);
-            return aId - bId;
-        }
-        return 0;
-    });
-
-    // Очищаем и перезаполняем таблицу
-    rows.forEach(row => tbody.appendChild(row));
-}
-
+// ---------- Добавление элемента справочника ----------
 function addDictionaryItem(dictType) {
     let formHtml = '';
     const title = getDictionaryTitle(dictType);
@@ -1092,6 +1116,35 @@ function addDictionaryItem(dictType) {
                     <div class="form-group">
                         <label for="dict-zoom">Уровень зума</label>
                         <input type="number" id="dict-zoom" value="12" min="1" max="18" class="admin-form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="dict-active">Статус</label>
+                        <select id="dict-active" class="admin-form-input">
+                            <option value="1">Активен</option>
+                            <option value="0">Неактивен</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Добавить</button>
+                    </div>
+                </form>
+            `;
+            break;
+
+        case 'zone_types':
+            formHtml = `
+                <form id="add-dictionary-form">
+                    <div class="form-group">
+                        <label for="dict-name">Название *</label>
+                        <input type="text" id="dict-name" required class="admin-form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="dict-icon">Иконка (emoji)</label>
+                        <input type="text" id="dict-icon" placeholder="🌳" class="admin-form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="dict-description">Описание</label>
+                        <textarea id="dict-description" rows="3" class="admin-form-input"></textarea>
                     </div>
                     <div class="form-group">
                         <label for="dict-active">Статус</label>
@@ -1169,22 +1222,17 @@ function addDictionaryItem(dictType) {
     document.getElementById('dictionary-modal-content').innerHTML = formHtml;
     document.getElementById('dictionary-modal').classList.add('active');
 
-    // Обработка формы
     document.getElementById('add-dictionary-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         await saveDictionaryItem(dictType, null);
     });
 }
 
+// ---------- Редактирование элемента справочника ----------
 async function editDictionaryItem(dictType, itemId) {
     try {
         const response = await fetch(`/api/dictionaries/${dictType}`);
         let data = await response.json();
-
-        // Сортировка данных по ID для поиска элемента
-        if (dictType === 'zone_types' || dictType === 'statuses' || dictType === 'problem_types') {
-            data.sort((a, b) => a.id - b.id);
-        }
 
         const item = data.find(i => i.id === itemId);
 
@@ -1196,13 +1244,24 @@ async function editDictionaryItem(dictType, itemId) {
         const title = getDictionaryTitle(dictType);
         let formHtml = '';
 
+        // Экранирование для безопасной вставки
+        const escapeHtml = (str) => {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
+
         switch(dictType) {
             case 'cities':
                 formHtml = `
                     <form id="edit-dictionary-form">
                         <div class="form-group">
                             <label for="dict-name">Название города *</label>
-                            <input type="text" id="dict-name" value="${item.name}" required class="admin-form-input">
+                            <input type="text" id="dict-name" value="${escapeHtml(item.name)}" required class="admin-form-input">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
@@ -1232,12 +1291,41 @@ async function editDictionaryItem(dictType, itemId) {
                 `;
                 break;
 
+            case 'zone_types':
+                formHtml = `
+                    <form id="edit-dictionary-form">
+                        <div class="form-group">
+                            <label for="dict-name">Название *</label>
+                            <input type="text" id="dict-name" value="${escapeHtml(item.name)}" required class="admin-form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="dict-icon">Иконка (emoji)</label>
+                            <input type="text" id="dict-icon" value="${escapeHtml(item.icon || '')}" placeholder="🌳" class="admin-form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="dict-description">Описание</label>
+                            <textarea id="dict-description" rows="3" class="admin-form-input">${escapeHtml(item.description || '')}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="dict-active">Статус</label>
+                            <select id="dict-active" class="admin-form-input">
+                                <option value="1" ${item.is_active ? 'selected' : ''}>Активен</option>
+                                <option value="0" ${!item.is_active ? 'selected' : ''}>Неактивен</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </form>
+                `;
+                break;
+
             case 'statuses':
                 formHtml = `
                     <form id="edit-dictionary-form">
                         <div class="form-group">
                             <label for="dict-name">Название статуса *</label>
-                            <input type="text" id="dict-name" value="${item.name}" required class="admin-form-input">
+                            <input type="text" id="dict-name" value="${escapeHtml(item.name)}" required class="admin-form-input">
                         </div>
                         <div class="form-group">
                             <label for="dict-color">Цвет *</label>
@@ -1245,7 +1333,7 @@ async function editDictionaryItem(dictType, itemId) {
                         </div>
                         <div class="form-group">
                             <label for="dict-icon">Иконка (emoji)</label>
-                            <input type="text" id="dict-icon" value="${item.icon || ''}" placeholder="🟢" class="admin-form-input">
+                            <input type="text" id="dict-icon" value="${escapeHtml(item.icon || '')}" placeholder="🟢" class="admin-form-input">
                         </div>
                         <div class="form-group">
                             <label for="dict-priority">Приоритет (1-5)</label>
@@ -1270,11 +1358,11 @@ async function editDictionaryItem(dictType, itemId) {
                     <form id="edit-dictionary-form">
                         <div class="form-group">
                             <label for="dict-name">Название *</label>
-                            <input type="text" id="dict-name" value="${item.name}" required class="admin-form-input">
+                            <input type="text" id="dict-name" value="${escapeHtml(item.name)}" required class="admin-form-input">
                         </div>
                         <div class="form-group">
                             <label for="dict-description">Описание</label>
-                            <textarea id="dict-description" rows="3" class="admin-form-input">${item.description || ''}</textarea>
+                            <textarea id="dict-description" rows="3" class="admin-form-input">${escapeHtml(item.description || '')}</textarea>
                         </div>
                         <div class="form-group">
                             <label for="dict-active">Статус</label>
@@ -1294,7 +1382,6 @@ async function editDictionaryItem(dictType, itemId) {
         document.getElementById('dictionary-modal-content').innerHTML = formHtml;
         document.getElementById('dictionary-modal').classList.add('active');
 
-        // Обработка формы
         document.getElementById('edit-dictionary-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             await saveDictionaryItem(dictType, itemId);
@@ -1306,10 +1393,9 @@ async function editDictionaryItem(dictType, itemId) {
     }
 }
 
+// ---------- Сохранение элемента справочника ----------
 async function saveDictionaryItem(dictType, itemId) {
     const form = document.getElementById(itemId ? 'edit-dictionary-form' : 'add-dictionary-form');
-    const formData = new FormData(form);
-
     let data = {};
 
     if (dictType === 'cities') {
@@ -1318,6 +1404,13 @@ async function saveDictionaryItem(dictType, itemId) {
             lat: parseFloat(document.getElementById('dict-lat').value),
             lng: parseFloat(document.getElementById('dict-lng').value),
             zoom: parseInt(document.getElementById('dict-zoom').value),
+            is_active: parseInt(document.getElementById('dict-active').value)
+        };
+    } else if (dictType === 'zone_types') {
+        data = {
+            name: document.getElementById('dict-name').value,
+            icon: document.getElementById('dict-icon').value,
+            description: document.getElementById('dict-description').value,
             is_active: parseInt(document.getElementById('dict-active').value)
         };
     } else if (dictType === 'statuses') {
@@ -1366,199 +1459,7 @@ async function saveDictionaryItem(dictType, itemId) {
     }
 }
 
-// Функция для полного удаления элемента справочника
-async function deleteDictionaryItem(dictType, itemId, itemName) {
-    if (!confirm(`Вы уверены, что хотите полностью удалить элемент "${itemName}"?\n\n⚠️ Внимание: Это действие невозможно отменить!`)) return;
-
-    try {
-        const response = await fetch(`/api/admin/dictionaries/${dictType}/${itemId}`, {
-            method: 'DELETE'
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            alert(result.message);
-            loadDictionary(dictType);
-        } else {
-            alert(result.error || 'Ошибка удаления элемента');
-        }
-    } catch (error) {
-        console.error('Ошибка удаления:', error);
-        alert('Ошибка соединения с сервером');
-    }
-}
-// Функция для загрузки справочника
-async function loadDictionary(dictType) {
-    try {
-        const response = await fetch(`/api/dictionaries/${dictType}`);
-        let data = await response.json();
-
-        const container = document.getElementById('dictionary-content');
-
-        if (!data.length) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-database"></i>
-                    <h3>Справочник пуст</h3>
-                    <p>Данные не найдены</p>
-                </div>
-            `;
-            return;
-        }
-
-        // Определяем заголовки в зависимости от типа справочника
-        let headers = [];
-        let tableRows = '';
-
-        switch(dictType) {
-            case 'cities':
-                headers = ['№', 'Название', 'Широта', 'Долгота', 'Зум', 'Статус', 'Действия'];
-                tableRows = data.map((item, index) => `
-                    <tr data-id="${item.id}" data-active="${item.is_active}">
-                        <td>${index + 1}</td>
-                        <td>${item.name}</td>
-                        <td>${item.lat}</td>
-                        <td>${item.lng}</td>
-                        <td>${item.zoom}</td>
-                        <td>
-                            <span class="status-badge ${item.is_active ? 'active' : 'inactive'}">
-                                ${item.is_active ? 'Активен' : 'Неактивен'}
-                            </span>
-                        </td>
-                        <td class="actions-cell">
-                            <div class="actions-inline">
-                                <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
-                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
-                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
-                                </button>
-                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `).join('');
-                break;
-
-            case 'statuses':
-                headers = ['№', 'Название', 'Цвет', 'Иконка', 'Приоритет', 'Статус', 'Действия'];
-                tableRows = data.map((item, index) => `
-                    <tr data-id="${item.id}" data-active="${item.is_active}">
-                        <td>${index + 1}</td>
-                        <td>${item.name}</td>
-                        <td>
-                            <span class="color-preview" style="background-color: ${item.color}"></span>
-                            ${item.color}
-                        </td>
-                        <td>${item.icon || '—'}</td>
-                        <td>${item.priority}</td>
-                        <td>
-                            <span class="status-badge ${item.is_active ? 'active' : 'inactive'}">
-                                ${item.is_active ? 'Активен' : 'Неактивен'}
-                            </span>
-                        </td>
-                        <td class="actions-cell">
-                            <div class="actions-inline">
-                                <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
-                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
-                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
-                                </button>
-                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `).join('');
-                break;
-
-            default:
-                headers = ['№', 'Название', 'Описание', 'Статус', 'Действия'];
-                tableRows = data.map((item, index) => `
-                    <tr data-id="${item.id}" data-active="${item.is_active}">
-                        <td>${index + 1}</td>
-                        <td>${item.name}</td>
-                        <td>${item.description || '—'}</td>
-                        <td>
-                            <span class="status-badge ${item.is_active ? 'active' : 'inactive'}">
-                                ${item.is_active ? 'Активен' : 'Неактивен'}
-                            </span>
-                        </td>
-                        <td class="actions-cell">
-                            <div class="actions-inline">
-                                <button class="btn-edit action-btn" onclick="editDictionaryItem('${dictType}', ${item.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-toggle action-btn" onclick="toggleDictionaryItemActive('${dictType}', ${item.id}, ${item.is_active})"
-                                        title="${item.is_active ? 'Деактивировать' : 'Активировать'}">
-                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
-                                </button>
-                                <button class="btn-delete-hard action-btn" onclick="deleteDictionaryItem('${dictType}', ${item.id}, '${item.name}')" title="Полностью удалить">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `).join('');
-        }
-
-        container.innerHTML = `
-            <div class="dictionary-header">
-                <h3>Справочник: ${getDictionaryTitle(dictType)} (${data.length} записей)</h3>
-                <div class="dictionary-filters">
-                    <select id="dictionary-status-filter" onchange="filterDictionaryTable('${dictType}')">
-                        <option value="all">Все статусы</option>
-                        <option value="active">Только активные</option>
-                        <option value="inactive">Только неактивные</option>
-                    </select>
-                    <div class="sort-buttons">
-                        <button class="btn btn-outline" onclick="sortDictionaryTable('${dictType}', 'id')">
-                            <i class="fas fa-sort-numeric-down"></i> По номеру
-                        </button>
-                        <button class="btn btn-outline" onclick="sortDictionaryTable('${dictType}', 'name')">
-                            <i class="fas fa-sort-alpha-down"></i> По алфавиту
-                        </button>
-                        <button class="btn btn-outline" onclick="sortDictionaryTable('${dictType}', 'status')">
-                            <i class="fas fa-sort"></i> По статусу
-                        </button>
-                    </div>
-                    <button class="btn btn-primary" onclick="addDictionaryItem('${dictType}')">
-                        <i class="fas fa-plus"></i> Добавить
-                    </button>
-                </div>
-            </div>
-            <table class="dictionary-table" id="${dictType}-table">
-                <thead>
-                    <tr>
-                        ${headers.map(header => `<th>${header}</th>`).join('')}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
-            </table>
-        `;
-
-    } catch (error) {
-        console.error('Ошибка загрузки справочника:', error);
-        document.getElementById('dictionary-content').innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-triangle"></i>
-                <h3>Ошибка загрузки</h3>
-                <p>Не удалось загрузить данные справочника</p>
-            </div>
-        `;
-    }
-}
-
-// Функция для переключения активности элемента справочника
+// ---------- Переключение активности элемента справочника ----------
 async function toggleDictionaryItemActive(dictType, itemId, currentActive) {
     const action = currentActive ? 'деактивации' : 'активации';
     if (!confirm(`Вы уверены, что хотите выполнить ${action} элемента?`)) return;
@@ -1582,7 +1483,7 @@ async function toggleDictionaryItemActive(dictType, itemId, currentActive) {
     }
 }
 
-// Функция для полного удаления элемента справочника
+// ---------- Полное удаление элемента справочника ----------
 async function deleteDictionaryItem(dictType, itemId, itemName) {
     if (!confirm(`Вы уверены, что хотите полностью удалить элемент "${itemName}"? Это действие нельзя отменить!`)) return;
 
@@ -1605,7 +1506,7 @@ async function deleteDictionaryItem(dictType, itemId, itemName) {
     }
 }
 
-// Функция для фильтрации таблицы справочника по статусу
+// ---------- Фильтрация таблицы справочника по статусу ----------
 function filterDictionaryTable(dictType) {
     const filterValue = document.getElementById('dictionary-status-filter').value;
     const table = document.getElementById(`${dictType}-table`);
@@ -1631,7 +1532,7 @@ function filterDictionaryTable(dictType) {
     });
 }
 
-// Функция для сортировки таблицы справочника
+// ---------- Сортировка таблицы справочника ----------
 function sortDictionaryTable(dictType, sortBy) {
     const table = document.getElementById(`${dictType}-table`);
     if (!table) return;
@@ -1648,25 +1549,22 @@ function sortDictionaryTable(dictType, sortBy) {
         const bId = parseInt(b.cells[0].textContent);
 
         if (sortBy === 'status') {
-            // Сначала активные, потом неактивные
             if (aActive === bActive) {
                 return aName.localeCompare(bName, 'ru');
             }
             return aActive ? -1 : 1;
         } else if (sortBy === 'name') {
-            // По алфавиту
             return aName.localeCompare(bName, 'ru');
         } else if (sortBy === 'id') {
-            // По порядковому номеру
             return aId - bId;
         }
         return 0;
     });
 
-    // Очищаем и перезаполняем таблицу
     rows.forEach(row => tbody.appendChild(row));
 }
-// Вспомогательные функции для обработки форм
+
+// ---------- Отправка формы добавления зоны админом ----------
 async function submitAddZoneForm(form) {
     const formData = {
         name: document.getElementById('admin-zone-name').value,
@@ -1678,7 +1576,7 @@ async function submitAddZoneForm(form) {
         description: document.getElementById('admin-zone-description').value
     };
 
-    // Валидация координат с исправлением запятых на точки
+    // Валидация координат
     const lat = parseFloat(formData.lat.replace(',', '.'));
     const lng = parseFloat(formData.lng.replace(',', '.'));
 
@@ -1692,7 +1590,6 @@ async function submitAddZoneForm(form) {
         return;
     }
 
-    // Обновляем значения координат с правильным форматом
     formData.lat = lat;
     formData.lng = lng;
 
@@ -1721,7 +1618,11 @@ async function submitAddZoneForm(form) {
             alert(`Зона успешно добавлена! ID: ${data.zone_id}`);
             document.getElementById('add-zone-admin-modal').classList.remove('active');
             form.reset();
-
+            // Уничтожаем карту при закрытии
+            if (adminMap) {
+                adminMap.remove();
+                adminMap = null;
+            }
             setTimeout(() => location.reload(), 1000);
         } else {
             alert(data.error || 'Ошибка добавления зоны');
@@ -1735,6 +1636,7 @@ async function submitAddZoneForm(form) {
     }
 }
 
+// ---------- Отправка формы назначения младшим администратором ----------
 async function submitPromoteJuniorForm(form) {
     const userId = document.getElementById('promote-junior-user-id').value;
     const adminPassword = document.getElementById('super-admin-password').value;
@@ -1777,6 +1679,7 @@ async function submitPromoteJuniorForm(form) {
     }
 }
 
+// ---------- Отправка формы назначения модератором ----------
 async function submitPromoteModeratorForm(form) {
     const userId = document.getElementById('promote-user-id').value;
     let adminPassword = '';
@@ -1822,6 +1725,7 @@ async function submitPromoteModeratorForm(form) {
     }
 }
 
+// ---------- Отправка формы понижения/удаления пользователя ----------
 async function submitDemoteForm(form) {
     const userId = document.getElementById('demote-user-id').value;
     const action = document.getElementById('confirm-demote').value;

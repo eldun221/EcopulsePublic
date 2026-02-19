@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
-from database import get_db, init_db
+from database import get_db, init_db, check_database_exists, backup_database
 from auth import auth_bp
 from config import Config
 import json
@@ -16,9 +16,25 @@ app.secret_key = Config.SECRET_KEY
 # Регистрация Blueprint
 app.register_blueprint(auth_bp, url_prefix='/auth')
 
-# Инициализация базы данных при запуске
+# Инициализация базы данных при запуске (только если нужно)
 with app.app_context():
-    init_db()
+    # Безопасная инициализация: проверяем существование базы данных
+    print("=" * 50)
+    print("Запуск системы ЭКОПУЛЬС")
+    print("=" * 50)
+
+    if check_database_exists():
+        print(f"✓ База данных найдена: {Config.DATABASE_PATH}")
+        print("✓ Проверяем структуру базы данных...")
+    else:
+        print(f"✗ База данных не найдена: {Config.DATABASE_PATH}")
+        print("✓ Создаем новую базу данных...")
+
+    # Инициализируем базу данных (таблицы будут созданы только если их нет)
+    init_db(force=False)
+
+    print("✓ Система готова к работе")
+    print("=" * 50)
 
 def get_cities_from_db():
     conn = get_db()
@@ -863,12 +879,31 @@ def manage_zone(zone_id):
 
         # Валидация координат
         try:
-            lat = float(data.get('lat', 0))
-            lng = float(data.get('lng', 0))
+            # Преобразуем в строку и заменяем запятые на точки
+            lat_str = str(data.get('lat', 0)).replace(',', '.')
+            lng_str = str(data.get('lng', 0)).replace(',', '.')
+
+            lat = float(lat_str)
+            lng = float(lng_str)
+
             if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
-                return jsonify({'error': 'Некорректные координаты'}), 400
-        except ValueError:
-            return jsonify({'error': 'Некорректные координаты'}), 400
+                return jsonify({
+                    'error': 'Некорректные координаты',
+                    'details': {
+                        'lat': lat,
+                        'lng': lng,
+                        'message': 'Координаты вне допустимого диапазона'
+                    }
+                }), 400
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'error': 'Некорректные координаты',
+                'details': {
+                    'lat_input': data.get('lat'),
+                    'lng_input': data.get('lng'),
+                    'error_message': str(e)
+                }
+            }), 400
 
         conn.execute('''
             UPDATE zones SET 
