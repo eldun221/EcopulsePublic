@@ -1,5 +1,5 @@
 // static/js/analytics.js
-// Цвета для светлой и темной темы
+
 const chartColors = {
     light: {
         excellent: '#4caf50',
@@ -29,7 +29,7 @@ const chartColors = {
     }
 };
 
-// Получение текущей цветовой схемы
+// Получение цветов в зависимости от темы
 function getChartColors() {
     const isDarkMode = document.body.classList.contains('dark-mode');
     return isDarkMode ? chartColors.dark : chartColors.light;
@@ -43,6 +43,7 @@ class AnalyticsDashboard {
         this.initialize();
     }
 
+    // Инициализация дашборда
     initialize() {
         this.setupEventListeners();
         this.loadAnalyticsData();
@@ -50,8 +51,8 @@ class AnalyticsDashboard {
         this.loadDetailedStats();
     }
 
+    // Настройка обработчиков событий
     setupEventListeners() {
-        // Город селектор
         const citySelect = document.getElementById('analytics-city');
         if (citySelect) {
             citySelect.addEventListener('change', () => {
@@ -60,7 +61,6 @@ class AnalyticsDashboard {
             });
         }
 
-        // Период селектор
         const periodSelect = document.getElementById('analytics-period');
         if (periodSelect) {
             periodSelect.addEventListener('change', () => {
@@ -69,7 +69,6 @@ class AnalyticsDashboard {
             });
         }
 
-        // Кнопка генерации отчета
         const generateReportBtn = document.getElementById('generate-report');
         if (generateReportBtn) {
             generateReportBtn.addEventListener('click', () => {
@@ -77,32 +76,30 @@ class AnalyticsDashboard {
             });
         }
 
-        // Переключение табов статистики
         document.querySelectorAll('.stats-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabId = tab.dataset.tab;
-
                 document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.stats-content').forEach(c => c.classList.remove('active'));
-
                 tab.classList.add('active');
                 document.getElementById(`${tabId}-stats`).classList.add('active');
             });
         });
 
-        // Обработчик изменения темы
         const observer = new MutationObserver(() => {
             this.updateChartsForTheme();
         });
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
 
+    // Перезагрузка всех данных
     async reloadAllData() {
         await this.loadAnalyticsData();
         await this.loadPredictions();
         await this.loadDetailedStats();
     }
 
+    // Загрузка аналитических данных
     async loadAnalyticsData() {
         try {
             const response = await fetch(`/api/analytics/data?city=${encodeURIComponent(this.currentCity)}&period=${this.currentPeriod}`);
@@ -117,6 +114,7 @@ class AnalyticsDashboard {
         }
     }
 
+    // Обновление метрик
     updateMetrics(metrics) {
         document.getElementById('total-zones').textContent = metrics.total_zones || 0;
 
@@ -129,16 +127,16 @@ class AnalyticsDashboard {
         document.getElementById('maintenance-count').textContent = metrics.maintenance_count || 0;
     }
 
+    // Отрисовка графиков
     renderCharts(data) {
         this.renderStatusChart(data.statusDistribution);
         this.renderTypeChart(data.typeDistribution);
         this.renderProblemsChart(data.problemsByType);
-        // Убрать: this.renderMonthlyTrendChart(data.monthly_stats);
 
-        // Загружаем отдельно данные для графика затрат
         this.loadCostsChart();
     }
 
+    // График распределения статусов
     renderStatusChart(distribution) {
         const ctx = document.getElementById('status-chart')?.getContext('2d');
         if (!ctx) return;
@@ -174,9 +172,7 @@ class AnalyticsDashboard {
                         position: 'right',
                         labels: {
                             color: document.body.classList.contains('dark-mode') ? '#fff' : '#333',
-                            font: {
-                                size: 12
-                            }
+                            font: { size: 12 }
                         }
                     }
                 }
@@ -184,6 +180,7 @@ class AnalyticsDashboard {
         });
     }
 
+    // График распределения типов зон
     renderTypeChart(distribution) {
         const ctx = document.getElementById('type-chart')?.getContext('2d');
         if (!ctx) return;
@@ -209,11 +206,7 @@ class AnalyticsDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -228,15 +221,14 @@ class AnalyticsDashboard {
                         ticks: {
                             color: document.body.classList.contains('dark-mode') ? '#fff' : '#666'
                         },
-                        grid: {
-                            display: false
-                        }
+                        grid: { display: false }
                     }
                 }
             }
         });
     }
 
+    // График проблем по типам
     renderProblemsChart(data) {
         const ctx = document.getElementById('problems-chart')?.getContext('2d');
         if (!ctx) return;
@@ -274,9 +266,7 @@ class AnalyticsDashboard {
                         position: 'right',
                         labels: {
                             color: document.body.classList.contains('dark-mode') ? '#fff' : '#333',
-                            font: {
-                                size: 12
-                            }
+                            font: { size: 12 }
                         }
                     }
                 }
@@ -284,6 +274,7 @@ class AnalyticsDashboard {
         });
     }
 
+    // Загрузка данных для графика затрат
     async loadCostsChart() {
         try {
             const response = await fetch(`/api/analytics/chart/maintenance-costs?city=${encodeURIComponent(this.currentCity)}`);
@@ -296,6 +287,7 @@ class AnalyticsDashboard {
         }
     }
 
+    // График затрат на обслуживание
     renderCostsChart(data) {
         const ctx = document.getElementById('costs-chart')?.getContext('2d');
         if (!ctx) return;
@@ -345,15 +337,14 @@ class AnalyticsDashboard {
                         ticks: {
                             color: document.body.classList.contains('dark-mode') ? '#fff' : '#666'
                         },
-                        grid: {
-                            display: false
-                        }
+                        grid: { display: false }
                     }
                 }
             }
         });
     }
 
+    // Загрузка прогнозов
     async loadPredictions() {
         try {
             const response = await fetch(`/api/analytics/predictions?city=${encodeURIComponent(this.currentCity)}`);
@@ -371,8 +362,8 @@ class AnalyticsDashboard {
         }
     }
 
+    // Обновление блока прогнозов
     updatePredictions(predictions) {
-        // Прогноз состояния
         const statusPrediction = document.getElementById('status-prediction');
         if (statusPrediction && predictions.status) {
             statusPrediction.innerHTML = `
@@ -392,7 +383,6 @@ class AnalyticsDashboard {
             `;
         }
 
-        // Прогноз бюджета
         const budgetPrediction = document.getElementById('budget-prediction');
         if (budgetPrediction && predictions.budget) {
             budgetPrediction.innerHTML = `
@@ -411,7 +401,6 @@ class AnalyticsDashboard {
             `;
         }
 
-        // Рекомендации
         const recommendations = document.getElementById('recommendations');
         if (recommendations && predictions.recommendations) {
             recommendations.innerHTML = predictions.recommendations.map(rec => `
@@ -423,6 +412,7 @@ class AnalyticsDashboard {
         }
     }
 
+    // Загрузка детальной статистики
     async loadDetailedStats() {
         try {
             const response = await fetch(`/api/analytics/detailed?city=${encodeURIComponent(this.currentCity)}`);
@@ -435,8 +425,8 @@ class AnalyticsDashboard {
         }
     }
 
+    // Обновление таблицы детальной статистики
     updateDetailedStats(data) {
-        // Обновляем таблицу зон
         const zonesStatsBody = document.getElementById('zones-stats-body');
         if (zonesStatsBody && data.zones) {
             zonesStatsBody.innerHTML = data.zones.map(zone => `
@@ -453,20 +443,19 @@ class AnalyticsDashboard {
         }
     }
 
+    // Обновление графиков при смене темы
     updateChartsForTheme() {
-        // Перерисовываем все графики при смене темы
         Object.keys(this.charts).forEach(chartName => {
             if (this.charts[chartName]) {
                 this.charts[chartName].destroy();
                 delete this.charts[chartName];
             }
         });
-
-        // Перезагружаем данные
         this.loadAnalyticsData();
         this.loadCostsChart();
     }
 
+    // Генерация отчёта
     generateReport() {
         const report = {
             title: `Отчет ЭКОПУЛЬС - ${this.currentCity}`,
@@ -476,7 +465,6 @@ class AnalyticsDashboard {
             data: {}
         };
 
-        // Собираем данные из DOM
         report.data = {
             totalZones: document.getElementById('total-zones').textContent,
             goodZones: document.getElementById('good-zones').textContent,
@@ -495,6 +483,7 @@ class AnalyticsDashboard {
         this.showMessage('Отчет успешно скачан', 'success');
     }
 
+    // Показ сообщения
     showMessage(text, type) {
         const message = document.createElement('div');
         message.className = `message message-${type}`;
@@ -526,49 +515,39 @@ class AnalyticsDashboard {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    // Добавляем стили для темной темы графиков
     const style = document.createElement('style');
     style.textContent = `
         body.dark-mode .chart-card {
             background-color: #2d2d2d;
             color: #fff;
         }
-
         body.dark-mode .chart-header h3 {
             color: #fff;
         }
-
         body.dark-mode .prediction-card {
             background-color: #2d2d2d;
             color: #fff;
         }
-
         body.dark-mode .prediction-header {
             background: linear-gradient(135deg, #388e3c, #1b5e20);
         }
-
         body.dark-mode .stats-table {
             color: #fff;
         }
-
         body.dark-mode .stats-table th {
             background-color: #333;
             color: #fff;
         }
-
         body.dark-mode .stats-table td {
             border-color: #444;
         }
-
         body.dark-mode .stats-table tr:hover {
             background-color: #333;
         }
-
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-
         @keyframes slideOut {
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }

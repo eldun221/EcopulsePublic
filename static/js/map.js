@@ -1,3 +1,5 @@
+// static/js/map.js
+
 let map;
 let currentMarkers = [];
 let currentCity = 'Барнаул';
@@ -13,57 +15,43 @@ function initMap() {
     const city = document.getElementById('city-select')?.value || 'Барнаул';
     currentCity = city;
 
-    // Проверяем режим админа
     adminMode = window.isAdminMode === 'true';
 
-    // Проверяем параметры URL для выбора координат
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('pick_location') === 'true') {
         locationPickerActive = true;
         alert('Кликните на карте, чтобы выбрать координаты. После выбора вернитесь к форме.');
     }
 
-    // Получаем координаты города из данных
     const cityData = window.citiesData ? window.citiesData[city] : { lat: 53.347996, lng: 83.779836, zoom: 12 };
 
-    // Создаем карту
-    // В функции initMap(), после создания карты L.map(), добавьте:
     map = L.map('map', {
-        zoomControl: false  // Отключаем контролы зума
+        zoomControl: false,
+        attributionControl: false
     }).setView([cityData.lat, cityData.lng], cityData.zoom);
 
-    // Добавляем слой OpenStreetMap с минимальной атрибуцией
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-        minZoom: 3
+        attribution: ''
     }).addTo(map);
 
-    // Настраиваем контроль атрибуции
-    map.attributionControl.setPrefix('');
-
-    // Загружаем зоны
     loadZones();
 
-    // Обработчик изменения границ карты
     map.on('moveend', function() {
         if (!locationPickerActive && !adminMode) {
             loadZones();
         }
     });
 
-    // Обработчик клика по карте для выбора местоположения
     map.on('click', function(e) {
         if (locationPickerActive) {
             handleLocationPick(e.latlng);
         } else if (adminMode) {
-            // Режим выбора координат для админа
             selectLocationForAdmin(e.latlng);
         }
     });
 }
 
-// Загрузка зон с сервера - ВСЕГДА загружаем все зоны
+// Загрузка зон с сервера
 async function loadZones() {
     try {
         const response = await fetch(`/api/zones?city=${encodeURIComponent(currentCity)}`);
@@ -78,22 +66,15 @@ async function loadZones() {
 
 // Обновление маркеров на карте
 function updateMarkers(zones) {
-    // Удаляем старые маркеры
     currentMarkers.forEach(marker => map.removeLayer(marker));
     currentMarkers = [];
 
-    // Фильтруем зоны
     const filteredZones = zones.filter(zone => {
-        if (currentFilters.status !== 'all' && zone.status !== currentFilters.status) {
-            return false;
-        }
-        if (currentFilters.type !== 'all' && zone.type !== currentFilters.type) {
-            return false;
-        }
+        if (currentFilters.status !== 'all' && zone.status !== currentFilters.status) return false;
+        if (currentFilters.type !== 'all' && zone.type !== currentFilters.type) return false;
         return true;
     });
 
-    // Добавляем новые маркеры
     filteredZones.forEach(zone => {
         const marker = createMarker(zone);
         marker.addTo(map);
@@ -104,23 +85,24 @@ function updateMarkers(zones) {
 // Создание маркера для зоны
 function createMarker(zone) {
     const statusColors = {
-        'отличный': '#4caf50',
-        'хороший': '#8bc34a',
-        'удовлетворительный': '#ffeb3b',
-        'требует ухода': '#ff9800',
-        'критический': '#f44336'
+        'Отличный': '#4caf50',
+        'Хороший': '#8bc34a',
+        'Удовлетворительный': '#ffeb3b',
+        'Требует ухода': '#ff9800',
+        'Критический': '#f44336'
     };
 
     const typeIcons = {
-        'парк': '🏞️',
-        'сквер': '🌳',
-        'газон': '🌿',
-        'сад': '🏵️',
-        'лесопарк': '🌲',
-        'бульвар': '🌴',
-        'аллея': '🍃',
-        'спортивная площадка': '⚽',
-        'детская площадка': '🛝'
+        'Парк': '🏞️',
+        'Сквер': '🌳',
+        'Газон': '🌿',
+        'Сад': '🏵️',
+        'Лесопарк': '🌲',
+        'Бульвар': '🌴',
+        'Аллея': '🍃',
+        'Спортивная площадка': '⚽',
+        'Детская площадка': '🛝',
+        'Площадь': '🏛️'
     };
 
     const icon = L.divIcon({
@@ -149,7 +131,6 @@ function createMarker(zone) {
 
     const marker = L.marker([zone.lat, zone.lng], { icon: icon });
 
-    // Popup с информацией
     const popupContent = `
     <div class="popup-content" style="min-width: 250px;">
         <h3 style="margin: 0 0 10px 0; color: #1b5e20;">${zone.name}</h3>
@@ -192,12 +173,10 @@ function selectLocationForAdmin(latlng) {
         lng: latlng.lng.toFixed(6)
     };
 
-    // Удаляем предыдущий маркер
     if (locationMarker) {
         map.removeLayer(locationMarker);
     }
 
-    // Добавляем новый маркер
     locationMarker = L.marker([latlng.lat, latlng.lng], {
         icon: L.divIcon({
             className: 'admin-location-marker',
@@ -208,7 +187,6 @@ function selectLocationForAdmin(latlng) {
         draggable: true
     }).addTo(map);
 
-    // Показываем координаты
     locationMarker.bindPopup(`
         <div style="padding: 10px;">
             <h4>Выбранные координаты:</h4>
@@ -220,7 +198,6 @@ function selectLocationForAdmin(latlng) {
         </div>
     `).openPopup();
 
-    // Обновляем координаты при перетаскивании
     locationMarker.on('dragend', function(e) {
         const newLatLng = e.target.getLatLng();
         selectedLocation = {
@@ -239,7 +216,6 @@ function selectLocationForAdmin(latlng) {
         `);
     });
 
-    // Сохраняем в глобальной области
     window.selectedLocation = selectedLocation;
 }
 
@@ -263,80 +239,45 @@ window.showZoneDetails = async function(zoneId) {
             <div class="zone-details">
                 <h2>${zone.name}</h2>
                 <div class="details-grid">
-                    <div class="detail-item">
-                        <strong>Город:</strong> ${zone.city}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Тип:</strong> ${zone.type}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Статус:</strong> ${zone.status}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Площадь:</strong> ${zone.area || 'Не указана'}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Создано:</strong> ${new Date(zone.created_at).toLocaleDateString('ru-RU')}
-                    </div>
+                    <div class="detail-item"><strong>Город:</strong> ${zone.city}</div>
+                    <div class="detail-item"><strong>Тип:</strong> ${zone.type}</div>
+                    <div class="detail-item"><strong>Статус:</strong> ${zone.status}</div>
+                    <div class="detail-item"><strong>Площадь:</strong> ${zone.area || 'Не указана'}</div>
+                    <div class="detail-item"><strong>Создано:</strong> ${new Date(zone.created_at).toLocaleDateString('ru-RU')}</div>
                 </div>
-
-                <div class="section">
-                    <h3>Описание</h3>
-                    <p>${zone.description || 'Описание отсутствует'}</p>
-                </div>
-
+                <div class="section"><h3>Описание</h3><p>${zone.description || 'Описание отсутствует'}</p></div>
                 ${problems.length > 0 ? `
-                <div class="section">
-                    <h3>Последние проблемы (${problems.length})</h3>
+                <div class="section"><h3>Последние проблемы (${problems.length})</h3>
                     <div class="problems-list">
                         ${problems.map(p => `
                             <div class="problem-item">
-                                <div class="problem-header">
-                                    <strong>${p.problem_type}</strong>
-                                    <span class="problem-date">${new Date(p.created_at).toLocaleDateString('ru-RU')}</span>
-                                </div>
+                                <div class="problem-header"><strong>${p.problem_type}</strong><span class="problem-date">${new Date(p.created_at).toLocaleDateString('ru-RU')}</span></div>
                                 <p>${p.description}</p>
-                                <div class="problem-footer">
-                                    <span>От: ${p.user_name}</span>
-                                    <span class="problem-status">${p.status}</span>
-                                </div>
+                                <div class="problem-footer"><span>От: ${p.user_name}</span><span class="problem-status">${p.status}</span></div>
                             </div>
                         `).join('')}
                     </div>
-                </div>
-                ` : ''}
-
+                </div>` : ''}
                 ${maintenance.length > 0 ? `
-                <div class="section">
-                    <h3>История обслуживания</h3>
+                <div class="section"><h3>История обслуживания</h3>
                     <div class="maintenance-list">
                         ${maintenance.map(m => `
                             <div class="maintenance-item">
-                                <div class="maintenance-header">
-                                    <strong>${m.action_type}</strong>
-                                    <span class="maintenance-date">${new Date(m.performed_at).toLocaleDateString('ru-RU')}</span>
-                                </div>
+                                <div class="maintenance-header"><strong>${m.action_type}</strong><span class="maintenance-date">${new Date(m.performed_at).toLocaleDateString('ru-RU')}</span></div>
                                 <p>${m.description}</p>
                                 ${m.cost ? `<div><strong>Стоимость:</strong> ${m.cost} руб.</div>` : ''}
                                 ${m.duration_minutes ? `<div><strong>Длительность:</strong> ${m.duration_minutes} мин.</div>` : ''}
-                                <div class="maintenance-footer">
-                                    <span>Исполнитель: ${m.user_name}</span>
-                                </div>
+                                <div class="maintenance-footer"><span>Исполнитель: ${m.user_name}</span></div>
                             </div>
                         `).join('')}
                     </div>
-                </div>
-                ` : ''}
-
+                </div>` : ''}
                 <div class="actions" style="margin-top: 20px;">
-                    <button onclick="reportProblem(${zone.id})" class="btn btn-primary" style="width: 100%;">
-                        Сообщить о проблеме
-                    </button>
+                    <button onclick="reportProblem(${zone.id})" class="btn btn-primary" style="width: 100%;">Сообщить о проблеме</button>
                 </div>
             </div>
         `;
 
-        // Показываем модальное окно с деталями
         showCustomModal('Детальная информация', modalContent);
 
     } catch (error) {
@@ -345,9 +286,8 @@ window.showZoneDetails = async function(zoneId) {
     }
 };
 
-// Сообщение о проблеме - ИСПРАВЛЕНА ПРОВЕРКА АВТОРИЗАЦИИ
+// Сообщение о проблеме
 window.reportProblem = function(zoneId) {
-    // Проверяем авторизацию через window.user (из base.html)
     if (!window.user || !window.user.id) {
         alert('Для сообщения о проблеме необходимо авторизоваться');
         return;
@@ -394,14 +334,8 @@ window.submitReport = async function(zoneId) {
     try {
         const response = await fetch('/api/report-problem', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                zone_id: zoneId,
-                problem_type: problemType,
-                description: description
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zone_id: zoneId, problem_type: problemType, description })
         });
 
         const data = await response.json();
@@ -409,7 +343,7 @@ window.submitReport = async function(zoneId) {
         if (data.success) {
             alert('Отчёт отправлен успешно!');
             closeCustomModal();
-            loadZones(); // Обновляем данные
+            loadZones();
         } else {
             alert(data.error || 'Ошибка отправки отчёта');
         }
@@ -422,7 +356,6 @@ window.submitReport = async function(zoneId) {
 // Обработка выбора координат
 function handleLocationPick(latlng) {
     if (locationPickerActive) {
-        // Сохраняем координаты в sessionStorage
         sessionStorage.setItem('pickedLocation', JSON.stringify({
             lat: latlng.lat.toFixed(6),
             lng: latlng.lng.toFixed(6)
@@ -430,7 +363,6 @@ function handleLocationPick(latlng) {
 
         alert('Координаты выбраны! Закройте эту вкладку и вернитесь к форме.');
 
-        // Даем возможность закрыть вкладку
         if (confirm('Координаты сохранены. Закрыть вкладку с картой?')) {
             window.close();
         }
@@ -442,18 +374,18 @@ window.saveSelectedLocation = function() {
     if (window.selectedLocation) {
         sessionStorage.setItem('pickedLocation', JSON.stringify(window.selectedLocation));
         alert('Местоположение сохранено! Вернитесь к форме добавления зоны.');
-        window.close(); // Закрываем вкладку
+        window.close();
     } else {
         alert('Сначала выберите точку на карте!');
     }
-}
+};
 
 window.cancelLocationSelection = function() {
     sessionStorage.removeItem('adminAddingZone');
     sessionStorage.removeItem('pickedLocation');
     alert('Режим выбора координат отменен.');
     window.close();
-}
+};
 
 // Загрузка графика аналитики
 window.loadAnalyticsChart = async function(chartType) {
@@ -462,24 +394,20 @@ window.loadAnalyticsChart = async function(chartType) {
         const response = await fetch(`/api/analytics/chart/${chartType}?city=${encodeURIComponent(city)}`);
         const data = await response.json();
 
-        // Уничтожаем предыдущий график
         if (currentChart) {
             currentChart.destroy();
         }
 
         const ctx = document.getElementById('analytics-chart').getContext('2d');
 
-        // Устанавливаем заголовок
         const titleMap = {
             'pollution': 'Загрязнение воздуха по районам',
             'zone-dynamics': 'Динамика добавления зон',
             'problem-types': 'Распределение типов проблем',
             'maintenance-costs': 'Затраты на обслуживание по типам зон'
         };
-
         document.getElementById('chart-title').textContent = titleMap[chartType] || 'Аналитика';
 
-        // Создаем график в зависимости от типа
         switch (chartType) {
             case 'pollution':
                 currentChart = createPollutionChart(ctx, data);
@@ -494,31 +422,21 @@ window.loadAnalyticsChart = async function(chartType) {
                 currentChart = createMaintenanceCostsChart(ctx, data);
                 break;
         }
-
     } catch (error) {
         console.error('Ошибка загрузки графика:', error);
         alert('Ошибка загрузки данных для графика');
     }
 };
 
+// Создание графика загрязнения
 function createPollutionChart(ctx, data) {
-    const pollutionColors = {
-        'низкий': '#4caf50',
-        'средний': '#ff9800',
-        'высокий': '#f44336'
-    };
-
+    const pollutionColors = { 'низкий': '#4caf50', 'средний': '#ff9800', 'высокий': '#f44336' };
     return new Chart(ctx, {
         type: 'scatter',
         data: {
             datasets: [{
                 label: 'Загрязнение воздуха',
-                data: data.points.map(p => ({
-                    x: p.x,
-                    y: p.y,
-                    label: p.label,
-                    value: p.value
-                })),
+                data: data.points.map(p => ({ x: p.x, y: p.y, label: p.label, value: p.value })),
                 backgroundColor: data.points.map(p => pollutionColors[p.level] || '#cccccc'),
                 borderWidth: 1,
                 pointRadius: data.points.map(p => p.value / 10)
@@ -527,10 +445,7 @@ function createPollutionChart(ctx, data) {
         options: {
             responsive: true,
             plugins: {
-                title: {
-                    display: true,
-                    text: 'Загрязнение воздуха по районам'
-                },
+                title: { display: true, text: 'Загрязнение воздуха по районам' },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -540,23 +455,14 @@ function createPollutionChart(ctx, data) {
                 }
             },
             scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Долгота'
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Широта'
-                    }
-                }
+                x: { title: { display: true, text: 'Долгота' } },
+                y: { title: { display: true, text: 'Широта' } }
             }
         }
     });
 }
 
+// Создание графика динамики зон
 function createZoneDynamicsChart(ctx, data) {
     return new Chart(ctx, {
         type: 'line',
@@ -573,34 +479,18 @@ function createZoneDynamicsChart(ctx, data) {
         },
         options: {
             responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Динамика добавления зон'
-                }
-            },
+            plugins: { title: { display: true, text: 'Динамика добавления зон' } },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Количество зон'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Месяц'
-                    }
-                }
+                y: { beginAtZero: true, title: { display: true, text: 'Количество зон' } },
+                x: { title: { display: true, text: 'Месяц' } }
             }
         }
     });
 }
 
+// Создание круговой диаграммы проблем
 function createProblemTypesChart(ctx, data) {
     const colors = ['#ff9800', '#f44336', '#2196f3', '#9c27b0', '#607d8b', '#795548'];
-
     return new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -614,18 +504,14 @@ function createProblemTypesChart(ctx, data) {
         options: {
             responsive: true,
             plugins: {
-                title: {
-                    display: true,
-                    text: 'Распределение типов проблем'
-                },
-                legend: {
-                    position: 'right'
-                }
+                title: { display: true, text: 'Распределение типов проблем' },
+                legend: { position: 'right' }
             }
         }
     });
 }
 
+// Создание графика затрат
 function createMaintenanceCostsChart(ctx, data) {
     return new Chart(ctx, {
         type: 'bar',
@@ -641,26 +527,10 @@ function createMaintenanceCostsChart(ctx, data) {
         },
         options: {
             responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Затраты на обслуживание по типам зон'
-                }
-            },
+            plugins: { title: { display: true, text: 'Затраты на обслуживание по типам зон' } },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Затраты (тыс. руб)'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Тип зоны'
-                    }
-                }
+                y: { beginAtZero: true, title: { display: true, text: 'Затраты (тыс. руб)' } },
+                x: { title: { display: true, text: 'Тип зоны' } }
             }
         }
     });
@@ -681,22 +551,16 @@ function showCustomModal(title, content) {
                     <h3>${title}</h3>
                     <button class="close-modal">&times;</button>
                 </div>
-                <div class="modal-body">
-                    ${content}
-                </div>
+                <div class="modal-body">${content}</div>
             </div>
         `;
         document.body.appendChild(modal);
 
-        modal.querySelector('.close-modal').addEventListener('click', () => {
-            closeCustomModal();
-        });
-
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeCustomModal();
-            }
-        });
+        modal.querySelector('.close-modal').addEventListener('click', closeCustomModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeCustomModal(); });
+    } else {
+        modal.querySelector('.modal-header h3').textContent = title;
+        modal.querySelector('.modal-body').innerHTML = content;
     }
 
     modal.classList.add('active');
@@ -721,10 +585,8 @@ function openModal(modalId) {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    // Ждём, пока карта загрузится
     setTimeout(initMap, 100);
 
-    // Обработчик изменения города
     const citySelect = document.getElementById('city-select');
     if (citySelect) {
         citySelect.addEventListener('change', function() {
@@ -737,7 +599,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Обработчик закрытия модального окна аналитики
     const analyticsModal = document.getElementById('analytics-modal');
     if (analyticsModal) {
         const closeBtn = analyticsModal.querySelector('.close-modal');
@@ -749,7 +610,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
-
         analyticsModal.addEventListener('click', function(e) {
             if (e.target === this) {
                 if (currentChart) {
@@ -760,18 +620,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Проверяем режим админа
     if (adminMode) {
-        // Добавляем стили для маркера админа
         const style = document.createElement('style');
-        style.textContent = `
-            .admin-location-marker {
-                z-index: 2000 !important;
-            }
-        `;
+        style.textContent = `.admin-location-marker { z-index: 2000 !important; }`;
         document.head.appendChild(style);
-
-        // Показываем уведомление
         setTimeout(() => {
             alert('Режим выбора координат активирован. Кликните на карте для выбора местоположения новой зоны.');
         }, 500);

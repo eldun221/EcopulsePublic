@@ -1,4 +1,5 @@
 // static/js/login.js
+
 document.addEventListener('DOMContentLoaded', function() {
     // Форма входа
     const loginForm = document.getElementById('login-form');
@@ -15,27 +16,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData(this);
                 const response = await fetch(this.action, {
                     method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: new URLSearchParams(new URLSearchParams(formData))
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new URLSearchParams(formData)
                 });
 
                 if (response.ok) {
                     const data = await response.json();
                     if (data.success) {
-                        // Показываем сообщение об успехе
                         const alertDiv = document.createElement('div');
                         alertDiv.className = 'alert alert-success';
                         alertDiv.textContent = data.message || 'Вход выполнен успешно!';
                         this.parentNode.insertBefore(alertDiv, this);
 
-                        // Перезагружаем страницу через секунду
                         setTimeout(() => {
                             window.location.href = '/';
                         }, 1000);
                     } else {
-                        // Показываем ошибку
                         const alertDiv = document.createElement('div');
                         alertDiv.className = 'alert alert-danger';
                         alertDiv.textContent = data.error || 'Ошибка входа';
@@ -67,7 +63,6 @@ document.addEventListener('DOMContentLoaded', function() {
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            // Валидация паролей
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm_password').value;
 
@@ -96,27 +91,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData(this);
                 const response = await fetch(this.action, {
                     method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: new URLSearchParams(new URLSearchParams(formData))
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new URLSearchParams(formData)
                 });
 
                 if (response.ok) {
                     const data = await response.json();
                     if (data.success) {
-                        // Показываем сообщение об успехе
                         const alertDiv = document.createElement('div');
                         alertDiv.className = 'alert alert-success';
                         alertDiv.textContent = data.message || 'Регистрация прошла успешно!';
                         this.parentNode.insertBefore(alertDiv, this);
 
-                        // Перезагружаем страницу через секунду
                         setTimeout(() => {
                             window.location.href = '/';
                         }, 1000);
                     } else {
-                        // Показываем ошибку
                         const alertDiv = document.createElement('div');
                         alertDiv.className = 'alert alert-danger';
                         alertDiv.textContent = data.error || 'Ошибка регистрации';

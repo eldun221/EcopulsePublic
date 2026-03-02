@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const lngInput = document.getElementById('lng');
     const citySelect = document.getElementById('city');
 
+    // Перемещение карты при выборе города
     citySelect.addEventListener('change', function() {
         const selectedCity = this.value;
         if (window.citiesData && window.citiesData[selectedCity]) {
@@ -26,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
     // Валидация ввода координат (только цифры и точка)
     latInput.addEventListener('input', function(e) {
         this.value = this.value.replace(/[^\d.-]/g, '');
@@ -42,35 +44,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const mapContainer = document.getElementById('map-preview');
         if (!mapContainer) return;
 
-        // Удаляем предыдущую карту если есть
         if (mapPreview) {
             mapPreview.remove();
             mapPreview = null;
         }
 
-        // Создаем карту
         mapPreview = L.map(mapContainer, {
             center: [53.347996, 83.779836],
             zoom: 12,
             zoomControl: false,
             attributionControl: false
         });
-
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 18
+            attribution: ''
         }).addTo(mapPreview);
 
-        // Добавляем маркер
         previewMarker = L.marker([53.347996, 83.779836], {
             draggable: true
         }).addTo(mapPreview);
 
-        // Обработка перетаскивания маркера
         previewMarker.on('dragend', function(e) {
             const latlng = e.target.getLatLng();
-            latInput.value = latlng.lat.toFixed(6);
-            lngInput.value = latlng.lng.toFixed(6);
+            document.getElementById('lat').value = latlng.lat.toFixed(6);
+            document.getElementById('lng').value = latlng.lng.toFixed(6);
+            updateMapPreview();
         });
     }
 
@@ -107,17 +104,6 @@ document.addEventListener('DOMContentLoaded', function() {
             initMapPreview();
         }
     }, 500);
-
-    // Выбор местоположения на карте - ОТКРЫВАЕМ В ТОЙ ЖЕ ВКЛАДКЕ
-//    if (pickOnMapBtn) {
-//        pickOnMapBtn.addEventListener('click', function() {
-//            const city = citySelect.value || 'Барнаул';
-//            // Сохраняем данные формы
-//            saveFormData();
-//            // Открываем в той же вкладке
-//            window.location.href = `/?city=${encodeURIComponent(city)}&pick_location=true`;
-//        });
-//    }
 
     // Сохранение данных формы в sessionStorage
     function saveFormData() {
@@ -163,17 +149,15 @@ document.addEventListener('DOMContentLoaded', function() {
             updateMapPreview();
             sessionStorage.removeItem('pickedLocation');
 
-            // Показываем уведомление
             alert('Координаты успешно загружены из карты!');
         } catch (e) {
             console.error('Ошибка загрузки координат:', e);
         }
     }
 
-    // Восстанавливаем данные формы при загрузке
     restoreFormData();
 
-
+    // Обработка загрузки фотографий
     function handlePhotoUpload(files) {
         const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
@@ -210,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
         photoInput.value = '';
     }
 
+    // Отображение превью загруженных фотографий
     function renderPhotoPreview() {
         photoPreview.innerHTML = '';
 
@@ -248,12 +233,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!validateForm()) return;
 
-        // Показываем индикатор загрузки
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
 
         try {
-            // Отправляем форму традиционным способом
             const response = await fetch('/add-zone', {
                 method: 'POST',
                 body: new FormData(form)
@@ -279,6 +262,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Валидация формы
     function validateForm() {
         const requiredFields = [
             'name', 'city', 'type',
@@ -310,6 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
+    // Получение данных формы в виде объекта
     function getFormData() {
         return {
             name: document.getElementById('name').value,
@@ -323,8 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
             photos: uploadedPhotos
         };
     }
-
-
 
     // Закрытие модального окна
     document.querySelectorAll('.close-modal').forEach(btn => {
