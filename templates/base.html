@@ -35,16 +35,9 @@
                     <h1 id="site-title">ЭКОПУЛЬС {{ city if city else '' }}</h1>
                 </div>
 
-                <!-- Кнопка "На карту" для десктопа (скрыта на мобильных) -->
+                <!-- Кнопка "На карту" -->
                 {% if request.path != '/' %}
-                <a href="{{ url_for('index') }}" class="back-to-map-desktop btn btn-outline">
-                    <i class="fas fa-arrow-left"></i> На карту
-                </a>
-                {% endif %}
-
-                <!-- Кнопка "На карту" для мобильных (скрыта на десктопе) -->
-                {% if request.path != '/' %}
-                <a href="{{ url_for('index') }}" class="back-to-map-mobile btn btn-outline">
+                <a href="{{ url_for('index') }}" class="back-to-map btn btn-outline">
                     <i class="fas fa-arrow-left"></i> На карту
                 </a>
                 {% endif %}

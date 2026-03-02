@@ -74,7 +74,6 @@
                         <td>{{ request.id }}</td>
                         <td>
                             <strong>{{ request.name }}</strong><br>
-                            <small>{{ request.description[:50] }}...</small>
                         </td>
                         <td>{{ request.city }}</td>
                         <td>{{ request.type }}</td>
@@ -153,16 +152,15 @@
                         <td>{{ zone.id }}</td>
                         <td>
                             <strong>{{ zone.name }}</strong><br>
-                            <small>{{ zone.description[:50] }}...</small>
                         </td>
                         <td>{{ zone.city }}</td>
                         <td>{{ zone.type }}</td>
-                        <td>
-                            <span class="status-badge"
-                                  style="background-color: {{ statuses[zone.status].color }}">
-                                {{ zone.status }}
-                            </span>
-                        </td>
+                       <td>
+                           <span class="status-badge"
+                                  style="background-color: {{ statuses[zone.adjusted_status].color }}">
+                                {{ zone.adjusted_status }}
+                           </span>
+                       </td>
                         <td>{{ zone.creator_name }}</td>
                         <td>
                             {% if zone.created_at %}
@@ -362,15 +360,12 @@
                         <small class="hint">Пример: 83.779836 для Барнаула</small>
                     </div>
                 </div>
-
-                <div class="form-group">
-                    <label for="admin-zone-description">Описание *</label>
-                    <textarea id="admin-zone-description"
-                              rows="4"
-                              required
-                              placeholder="Подробное описание зоны..."
-                              class="admin-form-input"></textarea>
+                <div class="map-preview-container">
+                    <h4>Выберите местоположение на карте</h4>
+                    <div id="admin-map-preview" class="map-preview" style="height: 300px; margin-bottom: 1rem;"></div>
+                    <small class="hint">Перетащите маркер для точного позиционирования. Координаты обновятся автоматически.</small>
                 </div>
+
 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">
