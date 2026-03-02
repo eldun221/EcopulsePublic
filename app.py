@@ -6,7 +6,7 @@ from config import Config
 import json
 from datetime import datetime
 from utils import calculate_zone_stats, generate_predictions, \
-    estimate_maintenance_cost, get_status_color, get_type_icon, format_date
+    get_status_color, get_type_icon, format_date
 import sqlite3
 import re
 
@@ -176,8 +176,6 @@ def get_zones():
             'status': adjusted_status,
             'lat': zone['lat'],
             'lng': zone['lng'],
-            'area': zone['area'],
-            'description': zone['description'],
             'problems_count': problems_count,
             'original_status': zone['status']
         })
@@ -260,6 +258,8 @@ def admin_panel():
         ORDER BY zr.created_at DESC
         '''
     ).fetchall()
+
+    # Получаем все зоны с создателем
     zones = conn.execute(
         '''
         SELECT z.*, u.name as creator_name
@@ -268,12 +268,28 @@ def admin_panel():
         ORDER BY z.created_at DESC
         '''
     ).fetchall()
+
+    # Собираем количество проблем для каждой зоны
+    cursor = conn.execute(
+        "SELECT zone_id, COUNT(*) as cnt FROM problem_reports WHERE status = 'new' GROUP BY zone_id"
+    )
+    problems_counts = {row['zone_id']: row['cnt'] for row in cursor.fetchall()}
+
+    zones_list = []
+    for zone in zones:
+        zone_dict = row_to_dict(zone)
+        zone_id = zone_dict['id']
+        problems_count = problems_counts.get(zone_id, 0)
+        zone_dict['problems_count'] = problems_count
+        zone_dict['adjusted_status'] = get_adjusted_status(zone_dict['status'], problems_count)
+        zones_list.append(zone_dict)
+
     user_count = conn.execute('SELECT COUNT(*) as count FROM users').fetchone()['count']
     conn.close()
     return render_template(
         'admin.html',
         requests=[row_to_dict(r) for r in requests],
-        zones=[row_to_dict(z) for z in zones],
+        zones=zones_list,                      # ← передаём обогащённый список
         user_count=user_count,
         cities=get_cities_from_db(),
         statuses=get_statuses_from_db(),
@@ -319,16 +335,16 @@ def approve_zone(request_id):
     conn.execute(
         '''
         INSERT INTO zones (
-            name, city, type, status, lat, lng, description, created_by, is_approved
-        ) VALUES (?, ?, ?, 'Удовлетворительный', ?, ?, ?, ?, 1)
+            name, city, type, status, lat, lng, created_by, is_approved
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
         ''',
         (
             zone_request['name'],
             zone_request['city'],
             zone_request['type'],
+            'Удовлетворительный',
             zone_request['lat'],
             zone_request['lng'],
-            zone_request['description'],
             zone_request['user_id']
         )
     )
@@ -369,7 +385,6 @@ def add_zone():
         zone_type = request.form.get('type')
         lat = request.form.get('lat')
         lng = request.form.get('lng')
-        description = request.form.get('description')
         try:
             lat = float(lat)
             lng = float(lng)
@@ -382,10 +397,10 @@ def add_zone():
         conn = get_db()
         conn.execute(
             '''
-            INSERT INTO zone_requests (user_id, name, city, type, lat, lng, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO zone_requests (user_id, name, city, type, lat, lng)
+            VALUES (?, ?, ?, ?, ?, ?)
             ''',
-            (session['user']['id'], name, city, zone_type, lat, lng, description)
+            (session['user']['id'], name, city, zone_type, lat, lng)
         )
         conn.commit()
         conn.close()
@@ -448,7 +463,6 @@ def analytics():
     zones_data = [row_to_dict(z) for z in zones]
     stats = calculate_zone_stats(zones_data)
     predictions = generate_predictions(zones_data)
-    costs = estimate_maintenance_cost(zones_data, city)
     conn.close()
     cities, zone_types, statuses, problem_types = get_dictionaries()
     return render_template(
@@ -462,7 +476,6 @@ def analytics():
         problem_stats=[row_to_dict(p) for p in problem_stats],
         stats=stats,
         predictions=predictions,
-        costs=costs,
         user=session.get('user')
     )
 
@@ -560,16 +573,9 @@ def get_detailed_stats():
         ''',
         (city,)
     ).fetchall()
-    zones = conn.execute(
-        'SELECT * FROM zones WHERE city = ? AND is_approved = 1',
-        (city,)
-    ).fetchall()
-    zones_data = [row_to_dict(z) for z in zones]
-    costs = estimate_maintenance_cost(zones_data, city)
     conn.close()
     return jsonify({
-        'zones': [row_to_dict(z) for z in zones_stats],
-        'costs': costs
+        'zones': [row_to_dict(z) for z in zones_stats]
     })
 
 # API для получения прогнозов состояния зон и бюджета
@@ -584,7 +590,6 @@ def get_predictions():
     zones_data = [row_to_dict(z) for z in zones]
     conn.close()
     predictions = generate_predictions(zones_data)
-    costs = estimate_maintenance_cost(zones_data, city)
     status_prediction = {
         'improve': len([p for p in predictions if p['priority'] == 'низкий']),
         'worsen': len(
@@ -595,12 +600,6 @@ def get_predictions():
             'Рекомендуется уделить внимание зонам с высоким приоритетом'
         )
     }
-    budget_prediction = {
-        'monthly': costs['total_monthly'],
-        'quarterly': costs['total_quarterly'],
-        'annual': costs['total_annual'],
-        'recommended': costs['total_monthly'] * 1.2
-    }
     recommendations = []
     for pred in predictions:
         if pred['priority'] in ['высокий', 'критический']:
@@ -609,7 +608,6 @@ def get_predictions():
             )
     return jsonify({
         'status': status_prediction,
-        'budget': budget_prediction,
         'recommendations': recommendations[:5]
     })
 
@@ -632,30 +630,6 @@ def get_chart_data(chart_type):
         data = {
             'labels': [p['problem_type'] for p in problem_stats],
             'values': [p['count'] for p in problem_stats]
-        }
-    elif chart_type == 'maintenance-costs':
-        zone_types = conn.execute(
-            'SELECT DISTINCT type FROM zones WHERE city = ? AND is_approved = 1',
-            (city,)
-        ).fetchall()
-        costs_by_type = []
-        for zone_type in zone_types:
-            zones = conn.execute(
-                '''
-                SELECT * FROM zones
-                WHERE city = ? AND type = ? AND is_approved = 1
-                ''',
-                (city, zone_type['type'])
-            ).fetchall()
-            zones_data = [row_to_dict(z) for z in zones]
-            cost = estimate_maintenance_cost(zones_data, city)
-            costs_by_type.append({
-                'type': zone_type['type'],
-                'cost': cost['total_monthly']
-            })
-        data = {
-            'labels': [c['type'] for c in costs_by_type],
-            'values': [c['cost'] / 1000 for c in costs_by_type]
         }
     else:
         data = {'error': 'Invalid chart type'}
@@ -857,8 +831,14 @@ def manage_zone(zone_id):
         if not zone:
             conn.close()
             return jsonify({'error': 'Zone not found'}), 404
+        problems_count = conn.execute(
+            'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone_id,)
+        ).fetchone()['cnt']
+        zone_dict = row_to_dict(zone)
+        zone_dict['problems_count'] = problems_count
         conn.close()
-        return jsonify(row_to_dict(zone))
+        return jsonify(zone_dict)
     elif request.method == 'PUT':
         data = request.get_json()
         try:
@@ -887,7 +867,7 @@ def manage_zone(zone_id):
         conn.execute(
             '''
             UPDATE zones SET
-                name = ?, city = ?, type = ?, status = ?, lat = ?, lng = ?, description = ?
+                name = ?, city = ?, type = ?, status = ?, lat = ?, lng = ?
             WHERE id = ?
             ''',
             (
@@ -897,7 +877,6 @@ def manage_zone(zone_id):
                 data.get('status'),
                 lat,
                 lng,
-                data.get('description'),
                 zone_id
             )
         )
@@ -914,6 +893,40 @@ def manage_zone(zone_id):
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'Зона удалена'})
+
+# Новый эндпоинт: синхронизация статуса зоны по количеству проблем
+@app.route('/api/admin/zone/<int:zone_id>/sync-status', methods=['POST'])
+def sync_zone_status(zone_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    manual_problems_count = data.get('problems_count')
+
+    conn = get_db()
+    zone = conn.execute('SELECT * FROM zones WHERE id = ?', (zone_id,)).fetchone()
+    if not zone:
+        conn.close()
+        return jsonify({'error': 'Zone not found'}), 404
+
+    if manual_problems_count is not None:
+        problems_count = int(manual_problems_count)
+    else:
+        problems_count = conn.execute(
+            'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone_id,)
+        ).fetchone()['cnt']
+
+    original_status = zone['status']
+    adjusted_status = get_adjusted_status(original_status, problems_count)
+
+    if adjusted_status != original_status:
+        conn.execute('UPDATE zones SET status = ? WHERE id = ?', (adjusted_status, zone_id))
+        conn.commit()
+
+    conn.close()
+    return jsonify({'success': True, 'new_status': adjusted_status})
 
 # API для добавления зоны администратором или модератором
 @app.route('/api/admin/add-zone', methods=['POST'])
@@ -938,8 +951,8 @@ def admin_add_zone():
         conn.execute(
             '''
             INSERT INTO zones (
-                name, city, type, status, lat, lng, description, created_by, is_approved
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                name, city, type, status, lat, lng, created_by, is_approved
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             ''',
             (
                 data['name'],
@@ -948,7 +961,6 @@ def admin_add_zone():
                 data.get('status', 'Удовлетворительный'),
                 lat,
                 lng,
-                data.get('description'),
                 session['user']['id']
             )
         )
@@ -1151,27 +1163,25 @@ def update_dictionary_item(dict_type, item_id):
         elif table == 'zone_types':
             conn.execute(
                 '''
-                INSERT INTO zone_types (name, icon, description, is_active)
-                VALUES (?, ?, ?, ?)
+                UPDATE zone_types SET name = ?, description = ?, icon = ?, is_active = ?
+                WHERE id = ?
                 ''',
                 (
-                    data['name'], data.get('icon', ''),
-                    data.get('description', ''), data.get('is_active', 1)
+                    data['name'], data.get('description', ''),
+                    data.get('icon', ''), data.get('is_active', 1), item_id
                 )
             )
         elif table == 'problem_types':
             conn.execute(
                 '''
-                INSERT INTO problem_types (name, description, is_active)
-                VALUES (?, ?, ?)
+                UPDATE problem_types SET name = ?, description = ?, is_active = ?
+                WHERE id = ?
                 ''',
                 (
                     data['name'], data.get('description', ''),
-                    data.get('is_active', 1)
+                    data.get('is_active', 1), item_id
                 )
             )
-        else:
-            pass
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'Элемент обновлен'})

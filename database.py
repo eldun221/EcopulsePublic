@@ -1,4 +1,4 @@
-# database.py
+# database.py (изменённый)
 import sqlite3
 import json
 from datetime import datetime
@@ -6,13 +6,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from config import Config
 import os
 
-# Возвращает соединение с базой данных с поддержкой строк-словарей
 def get_db():
     conn = sqlite3.connect(Config.DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Инициализирует базу данных: создаёт таблицы и заполняет начальными данными
 def init_db(force=False):
     db_dir = os.path.dirname(Config.DATABASE_PATH)
     if db_dir and not os.path.exists(db_dir):
@@ -102,7 +100,6 @@ def init_db(force=False):
                 type TEXT NOT NULL,
                 lat REAL NOT NULL,
                 lng REAL NOT NULL,
-                description TEXT,
                 status TEXT DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
@@ -117,8 +114,6 @@ def init_db(force=False):
                 status TEXT NOT NULL,
                 lat REAL NOT NULL,
                 lng REAL NOT NULL,
-                area TEXT,
-                description TEXT,
                 created_by INTEGER NOT NULL,
                 is_approved BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -172,7 +167,6 @@ def init_db(force=False):
     conn.close()
     print("✓ База данных готова к работе")
 
-# Заполняет справочные данные начальными значениями
 def fill_initial_data(conn):
     cities_data = [
         ('Барнаул', 53.347996, 83.779836, 12),
@@ -260,16 +254,15 @@ def fill_initial_data(conn):
     if zones_count == 0:
         print("✓ Добавляем начальные данные зон")
         all_test_zones = [
-            ('Тестовая Зона', 'Барнаул', 'Парк', 'Удовлетворительный', 53.347996, 83.779836,
-             '15 га', 'Центральный парк культуры и отдыха', 1),
+            ('Тестовая Зона', 'Барнаул', 'Парк', 'Удовлетворительный', 53.347996, 83.779836, 1),
         ]
         zones_added = 0
         for zone in all_test_zones:
             try:
                 conn.execute('''
                     INSERT INTO zones (
-                        name, city, type, status, lat, lng, area, description, created_by, is_approved
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                        name, city, type, status, lat, lng, created_by, is_approved
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
                 ''', zone)
                 zones_added += 1
             except sqlite3.IntegrityError as e:
@@ -298,11 +291,9 @@ def fill_initial_data(conn):
     if users_added > 0:
         print(f"✓ Создано {users_added} тестовых пользователей")
 
-# Проверяет существование файла базы данных
 def check_database_exists():
     return os.path.exists(Config.DATABASE_PATH)
 
-# Создаёт резервную копию базы данных
 def backup_database():
     if check_database_exists():
         import shutil

@@ -1,20 +1,17 @@
-# utils.py
+# utils.py (изменённый)
 import hashlib
 import json
 from datetime import datetime, timedelta
 from config import Config
 
-# Хеширование пароля (заменено на werkzeug, оставлено для совместимости)
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Проверка корректности email с помощью регулярного выражения
 def validate_email(email):
     import re
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
-# Возвращает цвет для статуса зоны
 def get_status_color(status):
     colors = {
         'Отличный': '#4caf50',
@@ -25,7 +22,6 @@ def get_status_color(status):
     }
     return colors.get(status, '#4caf50')
 
-# Возвращает иконку для типа зоны
 def get_type_icon(zone_type):
     icons = {
         'Парк': '🏞️',
@@ -41,7 +37,6 @@ def get_type_icon(zone_type):
     }
     return icons.get(zone_type, '📍')
 
-# Форматирует дату в строку вида ДД.ММ.ГГГГ ЧЧ:ММ
 def format_date(date_string):
     if not date_string:
         return ''
@@ -60,7 +55,6 @@ def format_date(date_string):
         pass
     return str(date_string)
 
-# Рассчитывает статистику по зонам (общее количество, хорошие, требующие ухода, критические)
 def calculate_zone_stats(zones):
     total = len(zones)
     if total == 0:
@@ -85,7 +79,6 @@ def calculate_zone_stats(zones):
         'problems_count': problems_count
     }
 
-# Генерирует прогнозы для каждой зоны на основе текущего статуса и проблем
 def generate_predictions(zones_data):
     predictions = []
     for zone in zones_data:
@@ -113,7 +106,6 @@ def generate_predictions(zones_data):
         })
     return predictions
 
-# Возвращает список рекомендованных действий для зоны
 def get_recommended_actions(status, problems_count):
     actions = []
     if status in ['Требует ухода', 'Критический']:
