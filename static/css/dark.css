@@ -1,3 +1,4 @@
+/* Тёмная тема для всего приложения */
 body.dark-mode {
     --primary-color: #4caf50;
     --primary-light: #81c784;
@@ -12,6 +13,7 @@ body.dark-mode {
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
+/* Шапка */
 body.dark-mode .header {
     background-color: #2d2d2d;
     border-bottom: 1px solid #333;
@@ -25,6 +27,18 @@ body.dark-mode .logo i {
     color: var(--primary-light);
 }
 
+/* Кнопка "На карту" в тёмной теме */
+body.dark-mode .back-to-map-mobile,
+body.dark-mode .back-to-map-desktop {
+    color: var(--primary-light);
+}
+
+body.dark-mode .back-to-map-mobile:hover,
+body.dark-mode .back-to-map-desktop:hover {
+    color: var(--primary-color);
+}
+
+/* Селектор города */
 body.dark-mode .city-selector select {
     background-color: #333;
     color: var(--text-primary);
@@ -35,6 +49,7 @@ body.dark-mode .city-selector select:hover {
     border-color: var(--primary-light);
 }
 
+/* Кнопки-иконки */
 body.dark-mode .btn-icon {
     color: var(--text-primary);
 }
@@ -44,6 +59,7 @@ body.dark-mode .btn-icon:hover {
     color: var(--primary-light);
 }
 
+/* Кнопка пользователя */
 body.dark-mode .btn-user {
     border-color: #444;
     background-color: #333;
@@ -55,6 +71,7 @@ body.dark-mode .btn-user:hover {
     border-color: var(--primary-light);
 }
 
+/* Выпадающее меню */
 body.dark-mode .dropdown-content {
     background-color: #2d2d2d;
     border: 1px solid #444;
@@ -68,6 +85,7 @@ body.dark-mode .dropdown-content a:hover {
     background-color: #333;
 }
 
+/* Кнопка с обводкой */
 body.dark-mode .btn-outline {
     border-color: var(--primary-light);
     color: var(--primary-light);
@@ -79,7 +97,7 @@ body.dark-mode .btn-outline:hover {
     color: white;
 }
 
-/* Side Panel */
+/* Боковая панель на карте */
 body.dark-mode .side-panel {
     background-color: #2d2d2d;
     border-right: 1px solid #333;
@@ -116,7 +134,7 @@ body.dark-mode .filter-btn:hover {
     border-color: var(--primary-light);
 }
 
-/* Темная тема для add_zone.html */
+/* Страница добавления зоны */
 body.dark-mode .add-zone-form {
     background: #2d2d2d;
     color: var(--text-primary);
@@ -171,7 +189,7 @@ body.dark-mode .form-notice {
     color: white;
 }
 
-/* Темная тема для admin.html */
+/* Админ-панель */
 body.dark-mode .stat-card,
 body.dark-mode .table-container,
 body.dark-mode .table-controls,
@@ -233,6 +251,7 @@ body.dark-mode .admin-tabs {
     border-bottom-color: #444;
 }
 
+/* Бейджи ролей */
 body.dark-mode .role-badge-super_admin {
     background: linear-gradient(135deg, #ffd700, #ffa500);
     color: #333;
@@ -253,6 +272,7 @@ body.dark-mode .role-badge-user {
     color: #b0b0b0;
 }
 
+/* Поля ввода в админке */
 body.dark-mode .admin-form-input {
     background-color: #333 !important;
     border: 1px solid #444 !important;
@@ -264,7 +284,7 @@ body.dark-mode .admin-form-input:focus {
     border-color: var(--primary-light) !important;
 }
 
-/* Темная тема для analytics.html */
+/* Аналитика */
 body.dark-mode .analytics-controls select {
     background-color: #333;
     border-color: #444;
@@ -294,7 +314,9 @@ body.dark-mode .prediction-card {
 }
 
 body.dark-mode .prediction-header {
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    background: linear-gradient(135deg,
+                                var(--primary-color),
+                                var(--primary-dark));
 }
 
 body.dark-mode .prediction-item {
@@ -360,7 +382,7 @@ body.dark-mode .chart-header h3 {
     color: #fff;
 }
 
-/* Темная тема для index.html */
+/* Главная страница */
 body.dark-mode .map-legend {
     background-color: #2d2d2d;
     color: var(--text-primary);
@@ -369,26 +391,38 @@ body.dark-mode .map-legend {
 body.dark-mode .legend-label {
     color: var(--text-primary);
 }
-/* Добавить в конец файла dark.css */
+
+/* Кнопки действий */
 body.dark-mode .actions button,
-body.dark-mode .btn-view, body.dark-mode .btn-edit, body.dark-mode .btn-delete,
-body.dark-mode .btn-approve, body.dark-mode .btn-reject,
-body.dark-mode .btn-promote-junior, body.dark-mode .btn-promote-moderator, body.dark-mode .btn-demote {
+body.dark-mode .btn-view,
+body.dark-mode .btn-edit,
+body.dark-mode .btn-delete,
+body.dark-mode .btn-approve,
+body.dark-mode .btn-reject,
+body.dark-mode .btn-promote-junior,
+body.dark-mode .btn-promote-moderator,
+body.dark-mode .btn-demote {
     box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
 }
 
 body.dark-mode .actions button:hover,
-body.dark-mode .btn-view:hover, body.dark-mode .btn-edit:hover, body.dark-mode .btn-delete:hover,
-body.dark-mode .btn-approve:hover, body.dark-mode .btn-reject:hover,
-body.dark-mode .btn-promote-junior:hover, body.dark-mode .btn-promote-moderator:hover, body.dark-mode .btn-demote:hover {
+body.dark-mode .btn-view:hover,
+body.dark-mode .btn-edit:hover,
+body.dark-mode .btn-delete:hover,
+body.dark-mode .btn-approve:hover,
+body.dark-mode .btn-reject:hover,
+body.dark-mode .btn-promote-junior:hover,
+body.dark-mode .btn-promote-moderator:hover,
+body.dark-mode .btn-demote:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.4) !important;
 }
 
+/* Справочники */
 body.dark-mode .dictionary-controls {
     background-color: #333;
     border: 1px solid #444;
 }
-/* Стили для темной темы справочников */
+
 body.dark-mode .dictionary-filters {
     background-color: #333;
     border: 1px solid #444;
@@ -436,10 +470,49 @@ body.dark-mode .btn-delete-hard {
 body.dark-mode .btn-delete-hard:hover {
     background: #b71c1c !important;
 }
+
+/* Карта предпросмотра */
 .map-preview {
     height: 300px;
     background: #f5f5f5;
     border-radius: 6px;
     border: 2px dashed #ddd;
     overflow: hidden;
+}
+
+/* Медиа-запросы для мобильных устройств в тёмной теме */
+@media (max-width: 768px) {
+    /* Существующие стили для справочников */
+    body.dark-mode .dictionary-filters {
+        background-color: #2d2d2d;
+        border: 1px solid #444;
+    }
+
+    body.dark-mode .dictionary-filters select {
+        background-color: #333;
+        color: var(--text-primary);
+        border-color: #444;
+    }
+
+    body.dark-mode .status-badge.active {
+        background-color: var(--primary-color) !important;
+    }
+
+    body.dark-mode .status-badge.inactive {
+        background-color: #f44336 !important;
+    }
+
+    /* Мобильные корректировки для новых элементов */
+    body.dark-mode .back-to-map-mobile {
+        color: var(--primary-light);
+    }
+
+    body.dark-mode .btn-user .full-role,
+    body.dark-mode .btn-user .short-role {
+        color: var(--text-primary);
+    }
+}
+
+@media (max-width: 480px) {
+    /* Можно добавить при необходимости */
 }
