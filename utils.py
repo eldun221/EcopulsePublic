@@ -1,56 +1,52 @@
+# utils.py
 import hashlib
 import json
 from datetime import datetime, timedelta
 from config import Config
 
-
+# Хеширование пароля (заменено на werkzeug, оставлено для совместимости)
 def hash_password(password):
-    """Хеширование пароля (используется werkzeug.security вместо этого)"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-
+# Проверка корректности email с помощью регулярного выражения
 def validate_email(email):
-    """Валидация email"""
     import re
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
-
+# Возвращает цвет для статуса зоны
 def get_status_color(status):
-    """Получение цвета для статуса"""
     colors = {
-        'отличный': '#4caf50',
-        'хороший': '#8bc34a',
-        'удовлетворительный': '#ffeb3b',
-        'требует ухода': '#ff9800',
-        'критический': '#f44336'
+        'Отличный': '#4caf50',
+        'Хороший': '#8bc34a',
+        'Удовлетворительный': '#ffeb3b',
+        'Требует ухода': '#ff9800',
+        'Критический': '#f44336'
     }
     return colors.get(status, '#4caf50')
 
-
+# Возвращает иконку для типа зоны
 def get_type_icon(zone_type):
-    """Получение иконки для типа зоны"""
     icons = {
-        'парк': '🏞️',
-        'сквер': '🌳',
-        'газон': '🌿',
-        'сад': '🏵️',
-        'лесопарк': '🌲',
-        'бульвар': '🌴',
-        'аллея': '🍃',
-        'спортивная площадка': '⚽',
-        'детская площадка': '🛝'
+        'Парк': '🏞️',
+        'Сквер': '🌳',
+        'Газон': '🌿',
+        'Сад': '🏵️',
+        'Лесопарк': '🌲',
+        'Бульвар': '🌴',
+        'Аллея': '🍃',
+        'Спортивная площадка': '⚽',
+        'Детская площадка': '🛝',
+        'Площадь': '🏛️'
     }
     return icons.get(zone_type, '📍')
 
-
+# Форматирует дату в строку вида ДД.ММ.ГГГГ ЧЧ:ММ
 def format_date(date_string):
-    """Форматирование даты"""
     if not date_string:
         return ''
     try:
         if isinstance(date_string, str):
-            # Пробуем разные форматы
             formats = ['%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d']
             for fmt in formats:
                 try:
@@ -64,9 +60,8 @@ def format_date(date_string):
         pass
     return str(date_string)
 
-
+# Рассчитывает статистику по зонам (общее количество, хорошие, требующие ухода, критические)
 def calculate_zone_stats(zones):
-    """Расчет статистики по зонам"""
     total = len(zones)
     if total == 0:
         return {
@@ -77,12 +72,10 @@ def calculate_zone_stats(zones):
             'good_percent': 0,
             'problems_count': 0
         }
-
-    good_count = sum(1 for z in zones if z.get('status') in ['отличный', 'хороший'])
-    needs_care_count = sum(1 for z in zones if z.get('status') == 'требует ухода')
-    critical_count = sum(1 for z in zones if z.get('status') == 'критический')
+    good_count = sum(1 for z in zones if z.get('status') in ['Отличный', 'Хороший'])
+    needs_care_count = sum(1 for z in zones if z.get('status') == 'Требует ухода')
+    critical_count = sum(1 for z in zones if z.get('status') == 'Критический')
     problems_count = sum(z.get('problems_count', 0) for z in zones)
-
     return {
         'total': total,
         'good': good_count,
@@ -92,31 +85,25 @@ def calculate_zone_stats(zones):
         'problems_count': problems_count
     }
 
-
+# Генерирует прогнозы для каждой зоны на основе текущего статуса и проблем
 def generate_predictions(zones_data):
-    """Генерация прогнозов по состоянию зон"""
     predictions = []
-
     for zone in zones_data:
-        status = zone.get('status', 'удовлетворительный')
-        last_maintenance = zone.get('last_maintenance')
+        status = zone.get('status', 'Удовлетворительный')
         problems_count = zone.get('problems_count', 0)
-
-        # Простой алгоритм прогнозирования
-        if status in ['отличный', 'хороший']:
+        if status in ['Отличный', 'Хороший']:
             if problems_count == 0:
                 prediction = 'Стабильное состояние на ближайший месяц'
                 priority = 'низкий'
             else:
                 prediction = 'Требуется профилактика в течение 2 недель'
                 priority = 'средний'
-        elif status == 'требует ухода':
+        elif status == 'Требует ухода':
             prediction = 'Требуется вмешательство в течение недели'
             priority = 'высокий'
-        else:  # критический
+        else:
             prediction = 'Срочное вмешательство требуется'
             priority = 'критический'
-
         predictions.append({
             'zone_name': zone.get('name', 'Неизвестная зона'),
             'current_status': status,
@@ -124,51 +111,40 @@ def generate_predictions(zones_data):
             'priority': priority,
             'recommended_actions': get_recommended_actions(status, problems_count)
         })
-
     return predictions
 
-
+# Возвращает список рекомендованных действий для зоны
 def get_recommended_actions(status, problems_count):
-    """Получение рекомендованных действий"""
     actions = []
-
-    if status in ['требует ухода', 'критический']:
+    if status in ['Требует ухода', 'Критический']:
         actions.append('Провести осмотр территории')
         actions.append('Составить план восстановительных работ')
-
     if problems_count > 0:
         actions.append('Рассмотреть активные проблемы')
-
-    if status == 'критический':
+    if status == 'Критический':
         actions.append('Выделить дополнительные ресурсы')
         actions.append('Уведомить ответственных лиц')
-
     if not actions:
         actions.append('Плановое обслуживание не требуется')
-
     return actions
 
-
+# Оценивает ежемесячные, квартальные и годовые затраты на обслуживание зон
 def estimate_maintenance_cost(zones, city):
-    """Оценка затрат на обслуживание"""
     cost_per_hectare = {
-        'отличный': 5000,  # руб/га в месяц
-        'хороший': 7500,
-        'удовлетворительный': 10000,
-        'требует ухода': 15000,
-        'критический': 25000
+        'Отличный': 5000,
+        'Хороший': 7500,
+        'Удовлетворительный': 10000,
+        'Требует ухода': 15000,
+        'Критический': 25000
     }
-
     total_cost = 0
     detailed_costs = []
-
     for zone in zones:
         if zone.get('city') == city:
             area = parse_area(zone.get('area', '0 га'))
-            status = zone.get('status', 'удовлетворительный')
+            status = zone.get('status', 'Удовлетворительный')
             cost = area * cost_per_hectare.get(status, 10000)
             total_cost += cost
-
             detailed_costs.append({
                 'name': zone.get('name', 'Неизвестная зона'),
                 'area': area,
@@ -177,7 +153,6 @@ def estimate_maintenance_cost(zones, city):
                 'quarterly_cost': cost * 3,
                 'annual_cost': cost * 12
             })
-
     return {
         'total_monthly': total_cost,
         'total_quarterly': total_cost * 3,
@@ -185,32 +160,18 @@ def estimate_maintenance_cost(zones, city):
         'detailed': detailed_costs
     }
 
-
+# Преобразует строку с площадью (например, "15 га") в число гектаров
 def parse_area(area_string):
-    """Парсинг строки с площадью"""
     if not area_string:
         return 1.0
-
     try:
-        # Приводим к строке и удаляем пробелы
         area_str = str(area_string).strip().lower()
-
-        # Удаляем все нечисловые символы кроме точки и запятой
         import re
         clean_str = re.sub(r'[^\d.,]', '', area_str)
-
-        # Заменяем запятую на точку
         clean_str = clean_str.replace(',', '.')
-
-        # Парсим число
         area = float(clean_str)
-
-        # Если в исходной строке было "га" или "гектар", оставляем как есть
-        # Если было "м²" или "м2", делим на 10000
         if any(x in area_str for x in ['м²', 'м2', 'кв.м', 'кв м']):
             area = area / 10000
-
-        return max(area, 0.1)  # Минимальная площадь 0.1 га
-
+        return max(area, 0.1)
     except:
-        return 1.0  # значение по умолчанию
+        return 1.0
