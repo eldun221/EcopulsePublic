@@ -71,16 +71,8 @@ body {
 }
 
 /* Кнопка "На карту" глобально */
-.back-to-map-mobile {
+.back-to-map {
     display: none;
-    text-decoration: none;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--primary-color);
-}
-
-.back-to-map-desktop {
-    display: inline-flex;
     text-decoration: none;
     align-items: center;
     gap: 0.5rem;
