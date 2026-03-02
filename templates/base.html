@@ -9,42 +9,53 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Custom CSS -->
+    <!-- Пользовательские CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark.css') }}" id="dark-theme" disabled>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark.css') }}"
+          id="dark-theme" disabled>
 
-    <link rel="icon" href="{{ url_for('static', filename='img/tree-icon.png') }}" type="image/png">
-
+    <link rel="icon" href="{{ url_for('static', filename='img/tree-icon.png') }}"
+          type="image/png">
 
 </head>
 <body>
     <div class="app-container">
-        <!-- Header -->
+        <!-- Шапка сайта -->
         <header class="header">
             <div class="header-left">
-                <!-- Кнопка возврата на карту
-                {% if request.path != '/' %}
-                <a href="{{ url_for('index') }}" class="back-to-map-mobile" title="Вернуться на карту">
-                    <i class="fas fa-arrow-left"></i>
-                    <span>На карту</span>
-                </a>
-                {% endif %} -->
-
                 <div class="logo">
-                    <img src="{{ url_for('static', filename='img/tree-icon.png') }}" alt="Логотип ЭКОПУЛЬС" class="logo-img">
+                    <img src="{{ url_for('static', filename='img/tree-icon.png') }}"
+                         alt="Логотип ЭКОПУЛЬС" class="logo-img">
                     <h1 id="site-title">ЭКОПУЛЬС {{ city if city else '' }}</h1>
                 </div>
+
+                <!-- Кнопка "На карту" для десктопа (скрыта на мобильных) -->
+                {% if request.path != '/' %}
+                <a href="{{ url_for('index') }}" class="back-to-map-desktop btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> На карту
+                </a>
+                {% endif %}
+
+                <!-- Кнопка "На карту" для мобильных (скрыта на десктопе) -->
+                {% if request.path != '/' %}
+                <a href="{{ url_for('index') }}" class="back-to-map-mobile btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> На карту
+                </a>
+                {% endif %}
+
                 {% if request.path == '/' %}
-                <!-- City Selector -->
+                <!-- Селектор города на главной странице -->
                 <div class="city-selector">
                     <select id="city-select">
                         {% for city_name in cities.keys()|sort %}
-                        <option value="{{ city_name }}" {% if city_name == city %}selected{% endif %}>
+                        <option value="{{ city_name }}"
+                                {% if city_name == city %}selected{% endif %}>
                             {{ city_name }}
                         </option>
                         {% endfor %}
@@ -54,27 +65,40 @@
             </div>
 
             <div class="header-right">
-                <!-- Night Mode Toggle -->
+                <!-- Переключатель ночного режима -->
                 <button id="night-mode-toggle" class="btn-icon" title="Ночной режим">
                     <i class="fas fa-moon"></i>
                 </button>
 
-                <!-- User Menu -->
+                <!-- Меню пользователя -->
                 <div class="user-menu">
                     {% if user %}
                     <div class="user-dropdown">
                         <button class="btn-user">
                             <i class="fas fa-user-circle"></i>
-                            {{ user.name }}
+                            <span class="full-role">{{ user.name }}</span>
+                            <span class="short-role">
+                                {% if user.role == 'super_admin' %}Гл. Админ
+                                {% elif user.role == 'junior_admin' %}Мл. Админ
+                                {% else %}{{ user.name }}{% endif %}
+                            </span>
                             <i class="fas fa-caret-down"></i>
                         </button>
                         <div class="dropdown-content">
                             {% if user.role in ['super_admin', 'junior_admin', 'moderator'] %}
-                            <a href="{{ url_for('admin_panel') }}"><i class="fas fa-cog"></i> Админ панель</a>
+                            <a href="{{ url_for('admin_panel') }}">
+                                <i class="fas fa-cog"></i> Админ панель
+                            </a>
                             {% endif %}
-                            <a href="{{ url_for('add_zone') }}"><i class="fas fa-plus-circle"></i> Добавить зону</a>
-                            <a href="{{ url_for('analytics') }}"><i class="fas fa-chart-line"></i> Аналитика</a>
-                            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Выйти</a>
+                            <a href="{{ url_for('add_zone') }}">
+                                <i class="fas fa-plus-circle"></i> Добавить зону
+                            </a>
+                            <a href="{{ url_for('analytics') }}">
+                                <i class="fas fa-chart-line"></i> Аналитика
+                            </a>
+                            <a href="{{ url_for('auth.logout') }}">
+                                <i class="fas fa-sign-out-alt"></i> Выйти
+                            </a>
                         </div>
                     </div>
                     {% else %}
@@ -86,19 +110,19 @@
             </div>
         </header>
 
-        <!-- Main Content -->
+        <!-- Основное содержимое -->
         <main class="main-content">
             {% block content %}{% endblock %}
         </main>
 
-        <!-- Footer -->
+        <!-- Подвал сайта -->
         <footer class="footer">
             <p>© 2026 ЭКОПУЛЬС ГОРОДОВ. Система мониторинга зелёных пространств</p>
             <p>Техническая поддержка: (Вставьте почту)</p>
         </footer>
     </div>
 
-    <!-- Login Modal -->
+    <!-- Модальное окно входа -->
     <div id="login-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -124,7 +148,7 @@
         </div>
     </div>
 
-    <!-- Register Modal -->
+    <!-- Модальное окно регистрации -->
     <div id="register-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -147,7 +171,10 @@
                     </div>
                     <div class="form-group">
                         <label for="reg-confirm">Подтвердите пароль</label>
-                        <input type="password" id="reg-confirm" name="confirm_password" required>
+                        <input type="password"
+                               id="reg-confirm"
+                               name="confirm_password"
+                               required>
                     </div>
                     <div class="form-group">
                         <label for="reg-city">Город</label>
@@ -167,7 +194,7 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Подключение скриптов -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
@@ -210,18 +237,6 @@
 
         // Сортируем города во всех селекторах
         ['reg-city', 'zone-city'].forEach(sortCityOptions);
-
-        // Проверяем путь для показа кнопки возврата на десктопе
-        if (window.innerWidth > 768 && window.location.pathname !== '/') {
-            const header = document.querySelector('.header-left');
-            if (header && !document.querySelector('.back-to-map-desktop')) {
-                const backBtn = document.createElement('a');
-                backBtn.className = 'back-to-map-desktop btn btn-outline';
-                backBtn.href = '/';
-                backBtn.innerHTML = '<i class="fas fa-arrow-left"></i> На карту';
-                header.insertBefore(backBtn, header.firstChild);
-            }
-        }
     });
     </script>
 

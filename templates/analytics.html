@@ -4,14 +4,17 @@
 
 {% block content %}
 
+<!-- Основной контейнер страницы аналитики -->
 <div class="analytics-container">
+    <!-- Заголовок и элементы управления -->
     <div class="analytics-header">
         <h1><i class="fas fa-chart-line"></i> Аналитика по городу {{ city }}</h1>
         <div class="analytics-controls">
             <div class="city-selector">
                 <select id="analytics-city">
                     {% for city_name in cities.keys() %}
-                    <option value="{{ city_name }}" {% if city_name == city %}selected{% endif %}>
+                    <option value="{{ city_name }}"
+                            {% if city_name == city %}selected{% endif %}>
                         {{ city_name }}
                     </option>
                     {% endfor %}
@@ -59,7 +62,9 @@
                 <i class="fas fa-exclamation-triangle" style="color: #ff9800;"></i>
             </div>
             <div class="metric-content">
-                <div class="metric-value" id="problem-zones">{{ stats.needs_care + stats.critical }}</div>
+                <div class="metric-value" id="problem-zones">
+                    {{ stats.needs_care + stats.critical }}
+                </div>
                 <div class="metric-label">С проблемами</div>
             </div>
         </div>
@@ -95,15 +100,6 @@
             </div>
         </div>
 
-<!--        <div class="chart-card">-->
-<!--            <div class="chart-header">-->
-<!--                <h3>Динамика добавления зон и проблем</h3>-->
-<!--            </div>-->
-<!--            <div class="chart-container">-->
-<!--                <canvas id="dynamics-chart"></canvas>-->
-<!--            </div>-->
-<!--        </div>-->
-
         <div class="chart-card">
             <div class="chart-header">
                 <h3>Распределение типов проблем</h3>
@@ -123,7 +119,7 @@
         </div>
     </div>
 
-    <!-- Прогнозы -->
+    <!-- Прогнозы и рекомендации -->
     <div class="predictions-section">
         <h2><i class="fas fa-crystal-ball"></i> Прогнозы и рекомендации</h2>
 

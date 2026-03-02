@@ -4,20 +4,29 @@
 
 {% block content %}
 
+<!-- Основной контейнер страницы добавления зоны -->
 <div class="add-zone-container">
+    <!-- Заголовок страницы с описанием -->
     <div class="add-zone-header">
         <h1><i class="fas fa-plus-circle"></i> Добавить новую зелёную зону</h1>
-        <p>Заполните форму для подачи заявки на добавление зоны. После модерации администратором зона появится на карте.</p>
+        <p>Заполните форму для подачи заявки на добавление зоны.
+           После модерации администратором зона появится на карте.</p>
     </div>
 
+    <!-- Форма добавления зоны -->
     <div class="add-zone-form">
-        <form id="zone-form" method="POST" action="{{ url_for('add_zone') }}">
+        <form id="zone-form"
+              method="POST"
+              action="{{ url_for('add_zone') }}">
+            <!-- Секция основной информации -->
             <div class="form-section">
                 <h3><i class="fas fa-info-circle"></i> Основная информация</h3>
 
                 <div class="form-group">
                     <label for="name">Название зоны *</label>
-                    <input type="text" id="name" name="name"
+                    <input type="text"
+                           id="name"
+                           name="name"
                            placeholder="Например: Парк имени Горького"
                            required>
                     <small class="hint">Укажите уникальное название для зоны</small>
@@ -46,13 +55,16 @@
                 </div>
             </div>
 
+            <!-- Секция местоположения -->
             <div class="form-section">
                 <h3><i class="fas fa-map-marker-alt"></i> Местоположение</h3>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="lat">Широта *</label>
-                        <input type="text" id="lat" name="lat"
+                        <input type="text"
+                               id="lat"
+                               name="lat"
                                placeholder="53.347996"
                                pattern="^-?\d+(\.\d+)?$"
                                title="Только цифры и точка"
@@ -62,7 +74,9 @@
 
                     <div class="form-group">
                         <label for="lng">Долгота *</label>
-                        <input type="text" id="lng" name="lng"
+                        <input type="text"
+                               id="lng"
+                               name="lng"
                                placeholder="83.779836"
                                pattern="^-?\d+(\.\d+)?$"
                                title="Только цифры и точка"
@@ -71,9 +85,12 @@
                     </div>
                 </div>
 
+                <!-- Карта для выбора местоположения -->
                 <div class="map-preview-container">
                     <h4>Выберите местоположение на карте</h4>
-                    <div class="map-preview" id="admin-map-preview" style="height: 300px; margin-bottom: 1rem;"></div>
+                    <div class="map-preview"
+                         id="admin-map-preview"
+                         style="height: 300px; margin-bottom: 1rem;"></div>
                     <small class="hint">Перетащите маркер для точного позиционирования</small>
                 </div>
 
@@ -82,12 +99,12 @@
                         <i class="fas fa-save"></i> Сохранить зону
                     </button>
                 </div>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
 </div>
 
-<!-- Модальное окно предпросмотра -->
+<!-- Модальное окно предпросмотра заявки -->
 <div id="preview-modal" class="modal">
     <div class="modal-content modal-wide">
         <div class="modal-header">

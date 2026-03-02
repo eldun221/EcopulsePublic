@@ -4,7 +4,9 @@
 
 {% block content %}
 
+<!-- Основной контейнер админ-панели -->
 <div class="admin-container">
+    <!-- Заголовок и статистика -->
     <div class="admin-header">
         <h1><i class="fas fa-cog"></i> Административная панель</h1>
         <div class="admin-stats">
@@ -27,7 +29,7 @@
             </div>
         </div>
 
-        <!-- Отображение текущей роли -->
+        <!-- Отображение текущей роли пользователя -->
         <div class="current-role-badge">
             <span class="role-badge role-{{ user.role }}">
                 {% if user.role == 'super_admin' %}
@@ -41,6 +43,7 @@
         </div>
     </div>
 
+    <!-- Вкладки администратора -->
     <div class="admin-tabs">
         <button class="tab-btn active" data-tab="requests">Заявки на добавление зон</button>
         <button class="tab-btn" data-tab="zones">Все зоны</button>
@@ -49,7 +52,7 @@
         <button class="tab-btn" data-tab="dictionaries">Справочники</button>
     </div>
 
-    <!-- Таб заявок -->
+    <!-- Вкладка заявок -->
     <div class="tab-content active" id="requests-tab">
         {% if requests %}
         <div class="table-container">
@@ -81,13 +84,16 @@
                         </td>
                         <td>{{ request.created_at[:10] }}</td>
                         <td class="actions">
-                            <button class="btn-view action-btn" onclick="viewRequestDetails({{ request.id }})">
+                            <button class="btn-view action-btn"
+                                    onclick="viewRequestDetails({{ request.id }})">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button class="btn-approve action-btn" onclick="approveRequest({{ request.id }})">
+                            <button class="btn-approve action-btn"
+                                    onclick="approveRequest({{ request.id }})">
                                 <i class="fas fa-check"></i>
                             </button>
-                            <button class="btn-reject action-btn" onclick="rejectRequest({{ request.id }})">
+                            <button class="btn-reject action-btn"
+                                    onclick="rejectRequest({{ request.id }})">
                                 <i class="fas fa-times"></i>
                             </button>
                         </td>
@@ -106,7 +112,7 @@
         {% endif %}
     </div>
 
-    <!-- Таб всех зон -->
+    <!-- Вкладка всех зон -->
     <div class="tab-content" id="zones-tab">
         <div class="table-controls">
             <div class="search-box">
@@ -152,7 +158,8 @@
                         <td>{{ zone.city }}</td>
                         <td>{{ zone.type }}</td>
                         <td>
-                            <span class="status-badge" style="background-color: {{ statuses[zone.status].color }}">
+                            <span class="status-badge"
+                                  style="background-color: {{ statuses[zone.status].color }}">
                                 {{ zone.status }}
                             </span>
                         </td>
@@ -166,14 +173,20 @@
                         </td>
                         <td class="actions-cell">
                             <div class="actions-inline">
-                                <button class="btn-view action-btn" onclick="viewZoneOnMap({{ zone.id }})" title="Посмотреть на карте">
+                                <button class="btn-view action-btn"
+                                        onclick="viewZoneOnMap({{ zone.id }})"
+                                        title="Посмотреть на карте">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button class="btn-edit action-btn" onclick="editZone({{ zone.id }})" title="Редактировать">
+                                <button class="btn-edit action-btn"
+                                        onclick="editZone({{ zone.id }})"
+                                        title="Редактировать">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 {% if user.role in ['super_admin', 'junior_admin'] %}
-                                <button class="btn-delete action-btn" onclick="deleteZone({{ zone.id }})" title="Удалить">
+                                <button class="btn-delete action-btn"
+                                        onclick="deleteZone({{ zone.id }})"
+                                        title="Удалить">
                                     <i class="fas fa-trash"></i>
                                 </button>
                                 {% endif %}
@@ -186,7 +199,7 @@
         </div>
     </div>
 
-    <!-- Таб пользователей -->
+    <!-- Вкладка пользователей -->
     <div class="tab-content" id="users-tab">
         <div class="table-container">
             <table class="admin-table">
@@ -213,13 +226,15 @@
         </div>
     </div>
 
-    <!-- Таб отчётов -->
+    <!-- Вкладка отчётов -->
     <div class="tab-content" id="reports-tab">
         <div class="reports-grid">
             <div class="report-card">
                 <h3><i class="fas fa-chart-line"></i> Статистика системы</h3>
                 <div id="system-stats"></div>
-                <button class="btn btn-outline" onclick="generateSystemReport()" style="display: block; margin: 0 auto;">
+                <button class="btn btn-outline"
+                        onclick="generateSystemReport()"
+                        style="display: block; margin: 0 auto;">
                     <i class="fas fa-download"></i> Скачать отчет
                 </button>
             </div>
@@ -241,7 +256,7 @@
         </div>
     </div>
 
-    <!-- Таб справочников -->
+    <!-- Вкладка справочников -->
     <div class="tab-content" id="dictionaries-tab">
         <div class="dictionaries-controls">
             <button class="btn btn-outline active-dict" data-dict="cities">
@@ -269,7 +284,6 @@
 </div>
 
 <!-- Модальное окно добавления зоны админом -->
-<!-- Модальное окно добавления зоны админом -->
 <div id="add-zone-admin-modal" class="modal">
     <div class="modal-content modal-wide">
         <div class="modal-header">
@@ -281,12 +295,17 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="admin-zone-name">Название зоны *</label>
-                        <input type="text" id="admin-zone-name" required
-                               placeholder="Например: Парк Победы" class="admin-form-input">
+                        <input type="text"
+                               id="admin-zone-name"
+                               required
+                               placeholder="Например: Парк Победы"
+                               class="admin-form-input">
                     </div>
                     <div class="form-group">
                         <label for="admin-zone-city">Город *</label>
-                        <select id="admin-zone-city" required class="admin-form-input">
+                        <select id="admin-zone-city"
+                                required
+                                class="admin-form-input">
                             <option value="">Выберите город</option>
                             {% for city_name in cities.keys()|sort %}
                             <option value="{{ city_name }}">{{ city_name }}</option>
@@ -298,7 +317,9 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="admin-zone-type">Тип зоны *</label>
-                        <select id="admin-zone-type" required class="admin-form-input">
+                        <select id="admin-zone-type"
+                                required
+                                class="admin-form-input">
                             <option value="">Выберите тип</option>
                             {% for type in zone_types %}
                             <option value="{{ type }}">{{ type|capitalize }}</option>
@@ -307,7 +328,9 @@
                     </div>
                     <div class="form-group">
                         <label for="admin-zone-status">Статус *</label>
-                        <select id="admin-zone-status" required class="admin-form-input">
+                        <select id="admin-zone-status"
+                                required
+                                class="admin-form-input">
                             {% for status in statuses.keys() %}
                             <option value="{{ status }}">{{ status|capitalize }}</option>
                             {% endfor %}
@@ -318,32 +341,38 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="admin-zone-lat">Широта *</label>
-                        <input type="text" id="admin-zone-lat" required
+                        <input type="text"
+                               id="admin-zone-lat"
+                               required
                                placeholder="53.347996"
                                pattern="^-?\d+(\.\d+)?$"
-                               title="Только цифры и точка" class="admin-form-input">
+                               title="Только цифры и точка"
+                               class="admin-form-input">
                         <small class="hint">Используйте точные координаты из карт</small>
                     </div>
                     <div class="form-group">
                         <label for="admin-zone-lng">Долгота *</label>
-                        <input type="text" id="admin-zone-lng" required
+                        <input type="text"
+                               id="admin-zone-lng"
+                               required
                                placeholder="83.779836"
                                pattern="^-?\d+(\.\d+)?$"
-                               title="Только цифры и точка" class="admin-form-input">
+                               title="Только цифры и точка"
+                               class="admin-form-input">
                         <small class="hint">Пример: 83.779836 для Барнаула</small>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="admin-zone-description">Описание *</label>
-                    <textarea id="admin-zone-description" rows="4" required
-                              placeholder="Подробное описание зоны..." class="admin-form-input"></textarea>
+                    <textarea id="admin-zone-description"
+                              rows="4"
+                              required
+                              placeholder="Подробное описание зоны..."
+                              class="admin-form-input"></textarea>
                 </div>
 
                 <div class="form-actions">
-                    <button type="button" class="btn btn-outline" onclick="pickLocationOnMap()">
-                        <i class="fas fa-map-marker-alt"></i> Выбрать на карте
-                    </button>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Сохранить зону
                     </button>
@@ -377,12 +406,18 @@
             <form id="promote-junior-admin-form">
                 <div class="form-group">
                     <label>Пользователь</label>
-                    <input type="text" id="promote-junior-user-name" readonly class="admin-form-input">
+                    <input type="text"
+                           id="promote-junior-user-name"
+                           readonly
+                           class="admin-form-input">
                 </div>
                 <div class="form-group">
                     <label for="super-admin-password">Пароль супер-администратора *</label>
-                    <input type="password" id="super-admin-password" required
-                           placeholder="Введите ваш пароль для подтверждения" class="admin-form-input">
+                    <input type="password"
+                           id="super-admin-password"
+                           required
+                           placeholder="Введите ваш пароль для подтверждения"
+                           class="admin-form-input">
                 </div>
                 <input type="hidden" id="promote-junior-user-id">
                 <div class="form-actions">
@@ -406,13 +441,19 @@
             <form id="promote-moderator-form">
                 <div class="form-group">
                     <label>Пользователь</label>
-                    <input type="text" id="promote-user-name" readonly class="admin-form-input">
+                    <input type="text"
+                           id="promote-user-name"
+                           readonly
+                           class="admin-form-input">
                 </div>
                 {% if user.role == 'super_admin' %}
                 <div class="form-group">
                     <label for="admin-password">Пароль администратора *</label>
-                    <input type="password" id="admin-password" required
-                           placeholder="Введите ваш пароль для подтверждения" class="admin-form-input">
+                    <input type="password"
+                           id="admin-password"
+                           required
+                           placeholder="Введите ваш пароль для подтверждения"
+                           class="admin-form-input">
                 </div>
                 {% endif %}
                 <input type="hidden" id="promote-user-id">
@@ -437,7 +478,10 @@
             <form id="demote-user-form">
                 <div class="form-group">
                     <label>Пользователь</label>
-                    <input type="text" id="demote-user-name" readonly class="admin-form-input">
+                    <input type="text"
+                           id="demote-user-name"
+                           readonly
+                           class="admin-form-input">
                 </div>
                 <div class="form-group">
                     <label for="confirm-demote">Подтверждение</label>
@@ -452,8 +496,10 @@
                 {% if user.role == 'super_admin' %}
                 <div class="form-group" id="admin-password-group" style="display: none;">
                     <label for="delete-admin-password">Пароль супер-администратора *</label>
-                    <input type="password" id="delete-admin-password"
-                           placeholder="Введите ваш пароль для подтверждения" class="admin-form-input">
+                    <input type="password"
+                           id="delete-admin-password"
+                           placeholder="Введите ваш пароль для подтверждения"
+                           class="admin-form-input">
                 </div>
                 {% endif %}
                 <input type="hidden" id="demote-user-id">

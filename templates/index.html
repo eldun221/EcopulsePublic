@@ -4,22 +4,24 @@
 
 {% block content %}
 
+<!-- Основной контейнер карты -->
 <div class="map-container">
     <div id="map"></div>
 
-    <!-- Side Panel -->
+    <!-- Боковая панель с фильтрами и статистикой -->
     <div class="side-panel" id="side-panel">
         <div class="panel-header">
             <div class="panel-title-wrapper">
                 <h3><i class="fas fa-map-marker-alt"></i> Зоны города {{ city }}</h3>
-                <button class="toggle-panel-btn" onclick="toggleSidePanel()" title="Скрыть/показать панель">
+                <button class="toggle-panel-btn" onclick="toggleSidePanel()"
+                        title="Скрыть/показать панель">
                     <i class="fas fa-chevron-left"></i>
                 </button>
             </div>
         </div>
 
         <div class="panel-content">
-            <!-- Filters -->
+            <!-- Фильтры -->
             <div class="filters">
                 <div class="filter-group">
                     <h4>Фильтр по статусу</h4>
@@ -46,7 +48,7 @@
                 </div>
             </div>
 
-            <!-- Statistics -->
+            <!-- Статистика города -->
             <div class="statistics">
                 <h4>Статистика города</h4>
                 <div class="stats-grid">
@@ -81,7 +83,7 @@
         </div>
     </div>
 
-    <!-- Legend (только для ПК) -->
+    <!-- Легенда карты (только для ПК) -->
     <div class="map-legend">
         <h4>Легенда</h4>
         {% for status, data in statuses.items() %}
@@ -93,7 +95,7 @@
     </div>
 </div>
 
-<!-- Analytics Modal -->
+<!-- Модальное окно аналитики -->
 <div id="analytics-modal" class="modal modal-wide">
     <div class="modal-content">
         <div class="modal-header">
@@ -111,7 +113,8 @@
 window.citiesData = {{ cities|tojson }};
 window.statuses = {{ statuses|tojson }};
 window.zoneTypes = {{ zone_types|tojson }};
-window.isAdminMode = {{ 'true' if (user and user.role == 'admin' and request.args.get('admin_mode') == 'true') else 'false' }};
+window.isAdminMode = {{ 'true' if (user and user.role == 'admin'
+                      and request.args.get('admin_mode') == 'true') else 'false' }};
 </script>
 
 <script src="{{ url_for('static', filename='js/map.js') }}"></script>
