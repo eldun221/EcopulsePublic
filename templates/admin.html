@@ -83,10 +83,6 @@
                         </td>
                         <td>{{ request.created_at[:10] }}</td>
                         <td class="actions">
-                            <button class="btn-view action-btn"
-                                    onclick="viewRequestDetails({{ request.id }})">
-                                <i class="fas fa-eye"></i>
-                            </button>
                             <button class="btn-approve action-btn"
                                     onclick="approveRequest({{ request.id }})">
                                 <i class="fas fa-check"></i>
@@ -506,17 +502,6 @@
                 </div>
             </form>
         </div>
-    </div>
-</div>
-
-<!-- Модальное окно просмотра заявки -->
-<div id="request-modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Детали заявки</h3>
-            <button class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body" id="request-details"></div>
     </div>
 </div>
 
