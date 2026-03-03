@@ -498,38 +498,7 @@ function filterZones() {
     });
 }
 
-// ---------- Просмотр деталей заявки ----------
-async function viewRequestDetails(requestId) {
-    try {
-        const response = await fetch(`/api/admin/request/${requestId}`);
-        const request = await response.json();
-        document.getElementById('request-details').innerHTML = `
-            <div class="request-details">
-                <h3>${request.name}</h3>
-                <div class="details-grid">
-                    <div><strong>Город:</strong> ${request.city}</div>
-                    <div><strong>Тип зоны:</strong> ${request.type}</div>
-                    <div><strong>Координаты:</strong> ${request.lat}, ${request.lng}</div>
-                    <div><strong>Дата подачи:</strong> ${request.created_at}</div>
-                    <div><strong>Пользователь:</strong> ${request.user_name} (${request.user_email})</div>
-                </div>
-                <div class="actions">
-                    <button class="btn btn-success" onclick="approveRequest(${requestId})">
-                        <i class="fas fa-check"></i> Принять
-                    </button>
-                    <button class="btn btn-danger" onclick="rejectRequest(${requestId})">
-                        <i class="fas fa-times"></i> Отклонить
-                    </button>
-                </div>
-            </div>
-        `;
-        document.getElementById('request-modal').classList.add('active');
-    } catch (error) {
-        console.error('Ошибка загрузки заявки:', error);
-        alert('Ошибка загрузки данных');
-    }
-}
-
+// ---------- Удалена функция viewRequestDetails, так как кнопка просмотра убрана ----------
 
 // Принятие заявки
 async function approveRequest(requestId) {
@@ -547,21 +516,22 @@ async function approveRequest(requestId) {
     }
 }
 
-// Отклонение заявки
+// Отклонение заявки (исправлено: без запроса причины)
 async function rejectRequest(requestId) {
-    const reason = prompt('Причина отклонения:');
-    if (reason === null) return;
+    if (!confirm('Вы уверены, что хотите отклонить заявку?')) return;
     try {
         const response = await fetch(`/api/admin/reject-zone/${requestId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason })
+            body: JSON.stringify({})
         });
         const data = await response.json();
         if (data.success) {
             alert('Заявка отклонена!');
             location.reload();
-        } else alert(data.error || 'Ошибка');
+        } else {
+            alert(data.error || 'Ошибка при отклонении');
+        }
     } catch (error) {
         console.error('Ошибка отклонения:', error);
         alert('Ошибка соединения');
@@ -584,7 +554,7 @@ async function viewZoneOnMap(zoneId) {
     }
 }
 
-// ---------- Редактирование зоны с картой ----------
+// ---------- Редактирование зоны с картой и полем проблем ----------
 async function editZone(zoneId) {
     try {
         const response = await fetch(`/api/admin/zone/${zoneId}`);
@@ -598,6 +568,11 @@ async function editZone(zoneId) {
             if (!str) return '';
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         };
+
+        // Определяем значение для поля проблем: если задано ручное, используем его, иначе реальное
+        const problemsValue = zone.manual_problems_count !== null && zone.manual_problems_count !== undefined
+            ? zone.manual_problems_count
+            : zone.problems_count;
 
         const formHtml = `
             <form id="edit-zone-form-${zoneId}">
@@ -646,11 +621,11 @@ async function editZone(zoneId) {
                     </div>
                 </div>
 
-                <!-- Новый блок: количество проблем и кнопка синхронизации статуса -->
+                <!-- Блок: количество проблем (редактируемое) и кнопка синхронизации -->
                 <div class="form-row">
                     <div class="form-group">
                         <label for="edit-problems-count-${zoneId}">Количество активных проблем</label>
-                        <input type="number" id="edit-problems-count-${zoneId}" value="${zone.problems_count}" min="0" class="admin-form-input">
+                        <input type="number" id="edit-problems-count-${zoneId}" value="${problemsValue}" min="0" class="admin-form-input">
                     </div>
                     <div class="form-group" style="display: flex; align-items: flex-end;">
                         <button type="button" class="btn btn-outline" id="sync-status-btn-${zoneId}" style="margin-bottom: 0.75rem;">
@@ -689,14 +664,27 @@ async function editZone(zoneId) {
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Синхронизация...';
 
+            const newCount = document.getElementById(`edit-problems-count-${zoneId}`).value;
+
             try {
-                const newCount = document.getElementById(`edit-problems-count-${zoneId}`).value;
                 const response = await fetch(`/api/admin/zone/${zoneId}/sync-status`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ problems_count: parseInt(newCount) })
                 });
-                const data = await response.json();
+
+                // Читаем ответ один раз как текст
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch {
+                    data = { error: responseText || 'Неизвестная ошибка' };
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
 
                 if (data.success) {
                     // Обновить выпадающий список статуса
@@ -708,7 +696,7 @@ async function editZone(zoneId) {
                     // Обновить строку в таблице зон (если открыта вкладка «Все зоны»)
                     const row = document.getElementById(`zone-row-${zoneId}`);
                     if (row) {
-                        const statusCell = row.querySelector('td:nth-child(5)'); // колонка статуса
+                        const statusCell = row.querySelector('td:nth-child(5)');
                         if (statusCell) {
                             const badge = statusCell.querySelector('.status-badge');
                             if (badge) {
@@ -720,13 +708,13 @@ async function editZone(zoneId) {
                         }
                     }
 
-                    alert('Статус синхронизирован с текущими проблемами');
+                    alert('Статус синхронизирован с указанным количеством проблем');
                 } else {
                     alert(data.error || 'Ошибка синхронизации');
                 }
             } catch (error) {
                 console.error('Ошибка:', error);
-                alert('Ошибка соединения');
+                alert('Ошибка: ' + error.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-sync-alt"></i> Синхронизировать статус';
@@ -751,12 +739,15 @@ async function updateZone(zoneId) {
         type: document.getElementById(`edit-type-${zoneId}`).value,
         status: document.getElementById(`edit-status-${zoneId}`).value,
         lat: document.getElementById(`edit-lat-${zoneId}`).value,
-        lng: document.getElementById(`edit-lng-${zoneId}`).value
+        lng: document.getElementById(`edit-lng-${zoneId}`).value,
+        manual_problems_count: parseInt(document.getElementById(`edit-problems-count-${zoneId}`).value) || 0
     };
+
     let latStr = formData.lat.toString().trim().replace(/,/g, '.').replace(/[^\d.-]/g, '');
     let lngStr = formData.lng.toString().trim().replace(/,/g, '.').replace(/[^\d.-]/g, '');
     const lat = parseFloat(latStr);
     const lng = parseFloat(lngStr);
+
     if (isNaN(lat) || lat < -90 || lat > 90) {
         alert('Некорректная широта');
         return;
@@ -767,28 +758,42 @@ async function updateZone(zoneId) {
     }
     formData.lat = lat;
     formData.lng = lng;
+
     if (!formData.name || !formData.city || !formData.type || !formData.status) {
         alert('Заполните все поля');
         return;
     }
+
     try {
         const response = await fetch(`/api/admin/zone/${zoneId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
         });
-        const data = await response.json();
+
+        // Читаем ответ один раз как текст
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch {
+            data = { error: responseText || 'Неизвестная ошибка' };
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
         if (data.success) {
             alert('Зона обновлена!');
             document.getElementById('edit-zone-modal').classList.remove('active');
             location.reload();
         } else {
-            alert(data.error || 'Ошибка');
-            console.error(data);
+            alert(data.error || 'Ошибка при обновлении');
         }
     } catch (error) {
         console.error('Ошибка обновления:', error);
-        alert('Ошибка соединения');
+        alert('Ошибка: ' + error.message);
     }
 }
 
