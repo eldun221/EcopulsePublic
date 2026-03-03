@@ -82,17 +82,28 @@
                             <small>{{ request.user_email }}</small>
                         </td>
                         <td>{{ request.created_at[:10] }}</td>
-                        <td class="actions">
-                            <button class="btn-approve action-btn"
-                                    onclick="approveRequest({{ request.id }})">
-                                <i class="fas fa-check"></i>
-                            </button>
-                            <button class="btn-reject action-btn"
-                                    onclick="rejectRequest({{ request.id }})">
-                                <i class="fas fa-times"></i>
-                            </button>
+                        <td class="actions-cell">
+                            <div class="actions-inline">
+                                <!-- Кнопка просмотра на карте (открывает модалку) -->
+                                <button class="btn-view action-btn"
+                                        onclick="viewRequestOnMap({{ request.id }}, {{ request.lat }}, {{ request.lng }}, '{{ request.city }}')"
+                                        title="Посмотреть на карте">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <!-- Кнопка одобрения -->
+                                <button class="btn-approve action-btn"
+                                        onclick="approveRequest({{ request.id }})"
+                                        title="Принять">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <!-- Кнопка отклонения -->
+                                <button class="btn-reject action-btn"
+                                        onclick="rejectRequest({{ request.id }})"
+                                        title="Отклонить">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                         </td>
-
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -362,7 +373,6 @@
                     <small class="hint">Перетащите маркер для точного позиционирования. Координаты обновятся автоматически.</small>
                 </div>
 
-
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Сохранить зону
@@ -382,6 +392,36 @@
         </div>
         <div class="modal-body" id="edit-zone-form-container">
             <!-- Форма редактирования загружается через JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно просмотра заявки на карте -->
+<div id="view-request-map-modal" class="modal">
+    <div class="modal-content modal-wide">
+        <div class="modal-header">
+            <h3><i class="fas fa-map-marked-alt"></i> Просмотр заявки на карте</h3>
+            <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Скрытые поля для хранения данных заявки -->
+            <input type="hidden" id="view-request-id" value="">
+            <input type="hidden" id="view-request-lat" value="">
+            <input type="hidden" id="view-request-lng" value="">
+            <input type="hidden" id="view-request-city" value="">
+
+            <div id="request-map-preview" class="map-preview" style="height: 400px;"></div>
+            <div class="form-actions" style="margin-top: 1rem; justify-content: center;">
+                <button type="button" class="btn btn-primary" onclick="approveRequestFromMap()">
+                    <i class="fas fa-check"></i> Принять заявку
+                </button>
+                <button type="button" class="btn btn-outline" onclick="rejectRequestFromMap()">
+                    <i class="fas fa-times"></i> Отклонить
+                </button>
+                <button type="button" class="btn btn-outline close-modal">
+                    <i class="fas fa-times"></i> Закрыть
+                </button>
+            </div>
         </div>
     </div>
 </div>
