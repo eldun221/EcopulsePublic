@@ -118,6 +118,7 @@ def init_db(force=False):
                 is_approved BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_maintenance TIMESTAMP,
+                manual_problems_count INTEGER,
                 FOREIGN KEY (created_by) REFERENCES users (id)
             )
         ''')

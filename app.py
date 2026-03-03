@@ -153,22 +153,28 @@ def get_zones():
     conn = get_db()
     zones = conn.execute(
         '''
-        SELECT * FROM zones
+        SELECT id, name, type, status, lat, lng, manual_problems_count
+        FROM zones
         WHERE city = ? AND is_approved = 1
         ''',
         (city,)
     ).fetchall()
+
     zones_data = []
     for zone in zones:
-        problems = conn.execute(
-            '''
-            SELECT COUNT(*) as count FROM problem_reports
-            WHERE zone_id = ? AND status = 'new'
-            ''',
+        # Реальное количество проблем
+        real_problems = conn.execute(
+            'SELECT COUNT(*) as count FROM problem_reports WHERE zone_id = ? AND status = "new"',
             (zone['id'],)
-        ).fetchone()
-        problems_count = problems['count']
+        ).fetchone()['count']
+
+        # Выбираем, какое значение использовать для расчёта статуса
+        manual = zone['manual_problems_count']
+        problems_count = manual if manual is not None else real_problems
+
+        # Скорректированный статус
         adjusted_status = get_adjusted_status(zone['status'], problems_count)
+
         zones_data.append({
             'id': zone['id'],
             'name': zone['name'],
@@ -179,6 +185,7 @@ def get_zones():
             'problems_count': problems_count,
             'original_status': zone['status']
         })
+
     conn.close()
     return jsonify(zones_data)
 
@@ -224,19 +231,43 @@ def get_zone_details(zone_id):
 def report_problem():
     if 'user' not in session:
         return jsonify({'error': 'Требуется авторизация'}), 401
+
     data = request.get_json()
+    zone_id = data['zone_id']
     conn = get_db()
+
+    # 1. Сохраняем жалобу
     conn.execute(
         '''
         INSERT INTO problem_reports (zone_id, user_id, problem_type, description)
         VALUES (?, ?, ?, ?)
         ''',
-        (data['zone_id'], session['user']['id'], data['problem_type'], data['description'])
+        (zone_id, session['user']['id'], data['problem_type'], data['description'])
     )
+
+    # 2. Получаем текущую информацию о зоне
+    zone = conn.execute(
+        'SELECT status, manual_problems_count FROM zones WHERE id = ?',
+        (zone_id,)
+    ).fetchone()
+
+    # 3. Если ручное количество проблем НЕ задано – пересчитываем статус
+    if zone and zone['manual_problems_count'] is None:
+        real_problems = conn.execute(
+            'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone_id,)
+        ).fetchone()['cnt']
+
+        new_status = get_adjusted_status(zone['status'], real_problems)
+        if new_status != zone['status']:
+            conn.execute(
+                'UPDATE zones SET status = ? WHERE id = ?',
+                (new_status, zone_id)
+            )
+
     conn.commit()
     conn.close()
     return jsonify({'success': True})
-
 # Панель администратора
 @app.route('/admin')
 def admin_panel():
@@ -269,7 +300,7 @@ def admin_panel():
         '''
     ).fetchall()
 
-    # Собираем количество проблем для каждой зоны
+    # Собираем реальное количество проблем для каждой зоны
     cursor = conn.execute(
         "SELECT zone_id, COUNT(*) as cnt FROM problem_reports WHERE status = 'new' GROUP BY zone_id"
     )
@@ -279,7 +310,10 @@ def admin_panel():
     for zone in zones:
         zone_dict = row_to_dict(zone)
         zone_id = zone_dict['id']
-        problems_count = problems_counts.get(zone_id, 0)
+        real_problems = problems_counts.get(zone_id, 0)
+        # Если задано ручное значение, используем его
+        manual = zone_dict.get('manual_problems_count')
+        problems_count = manual if manual is not None else real_problems
         zone_dict['problems_count'] = problems_count
         zone_dict['adjusted_status'] = get_adjusted_status(zone_dict['status'], problems_count)
         zones_list.append(zone_dict)
@@ -289,7 +323,7 @@ def admin_panel():
     return render_template(
         'admin.html',
         requests=[row_to_dict(r) for r in requests],
-        zones=zones_list,                      # ← передаём обогащённый список
+        zones=zones_list,
         user_count=user_count,
         cities=get_cities_from_db(),
         statuses=get_statuses_from_db(),
@@ -356,18 +390,16 @@ def approve_zone(request_id):
     conn.close()
     return jsonify({'success': True})
 
-# API для отклонения заявки на добавление зоны
+# API для отклонения заявки на добавление зоны (исправлено: убрано поле rejection_reason)
 @app.route('/api/admin/reject-zone/<int:request_id>', methods=['POST'])
 def reject_zone(request_id):
     user = session.get('user')
     if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
         return jsonify({'error': 'Unauthorized'}), 401
-    data = request.get_json()
-    reason = data.get('reason', 'Причина не указана')
     conn = get_db()
     conn.execute(
-        'UPDATE zone_requests SET status = "rejected", rejection_reason = ? WHERE id = ?',
-        (reason, request_id)
+        'UPDATE zone_requests SET status = "rejected" WHERE id = ?',
+        (request_id,)
     )
     conn.commit()
     conn.close()
@@ -837,6 +869,7 @@ def manage_zone(zone_id):
         ).fetchone()['cnt']
         zone_dict = row_to_dict(zone)
         zone_dict['problems_count'] = problems_count
+        # manual_problems_count уже есть в zone_dict
         conn.close()
         return jsonify(zone_dict)
     elif request.method == 'PUT':
@@ -864,10 +897,20 @@ def manage_zone(zone_id):
                     'error_message': str(e)
                 }
             }), 400
+
+        # Обработка manual_problems_count
+        manual_count = data.get('manual_problems_count')
+        if manual_count is not None:
+            try:
+                manual_count = int(manual_count)
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Некорректное значение количества проблем'}), 400
+
         conn.execute(
             '''
             UPDATE zones SET
-                name = ?, city = ?, type = ?, status = ?, lat = ?, lng = ?
+                name = ?, city = ?, type = ?, status = ?, lat = ?, lng = ?,
+                manual_problems_count = ?
             WHERE id = ?
             ''',
             (
@@ -877,6 +920,7 @@ def manage_zone(zone_id):
                 data.get('status'),
                 lat,
                 lng,
+                manual_count,
                 zone_id
             )
         )
@@ -894,7 +938,7 @@ def manage_zone(zone_id):
         conn.close()
         return jsonify({'success': True, 'message': 'Зона удалена'})
 
-# Новый эндпоинт: синхронизация статуса зоны по количеству проблем
+# Новый эндпоинт: синхронизация статуса зоны с учётом ручного количества проблем
 @app.route('/api/admin/zone/<int:zone_id>/sync-status', methods=['POST'])
 def sync_zone_status(zone_id):
     user = session.get('user')
@@ -902,7 +946,7 @@ def sync_zone_status(zone_id):
         return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.get_json() or {}
-    manual_problems_count = data.get('problems_count')
+    manual_count = data.get('problems_count')
 
     conn = get_db()
     zone = conn.execute('SELECT * FROM zones WHERE id = ?', (zone_id,)).fetchone()
@@ -910,8 +954,12 @@ def sync_zone_status(zone_id):
         conn.close()
         return jsonify({'error': 'Zone not found'}), 404
 
-    if manual_problems_count is not None:
-        problems_count = int(manual_problems_count)
+    if manual_count is not None:
+        try:
+            problems_count = int(manual_count)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': 'Некорректное значение количества проблем'}), 400
     else:
         problems_count = conn.execute(
             'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
@@ -921,10 +969,12 @@ def sync_zone_status(zone_id):
     original_status = zone['status']
     adjusted_status = get_adjusted_status(original_status, problems_count)
 
-    if adjusted_status != original_status:
-        conn.execute('UPDATE zones SET status = ? WHERE id = ?', (adjusted_status, zone_id))
-        conn.commit()
-
+    # Обновляем статус и manual_problems_count
+    conn.execute(
+        'UPDATE zones SET status = ?, manual_problems_count = ? WHERE id = ?',
+        (adjusted_status, problems_count, zone_id)
+    )
+    conn.commit()
     conn.close()
     return jsonify({'success': True, 'new_status': adjusted_status})
 
