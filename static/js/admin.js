@@ -9,6 +9,8 @@ let adminMap = null;
 let adminMarker = null;
 let editMap = null;
 let editMarker = null;
+let requestMap = null;          // карта для просмотра заявки
+let requestMarker = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
@@ -23,14 +25,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Закрытие модалок и очистка карт
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.addEventListener('click', function() {
-            this.closest('.modal').classList.remove('active');
-            if (this.closest('.modal')?.id === 'add-zone-admin-modal' && adminMap) {
+            const modal = this.closest('.modal');
+            modal.classList.remove('active');
+
+            // Очистка карт
+            if (modal?.id === 'add-zone-admin-modal' && adminMap) {
                 adminMap.remove();
                 adminMap = null;
             }
-            if (this.closest('.modal')?.id === 'edit-zone-modal' && editMap) {
+            if (modal?.id === 'edit-zone-modal' && editMap) {
                 editMap.remove();
                 editMap = null;
+            }
+            if (modal?.id === 'view-request-map-modal' && requestMap) {
+                requestMap.remove();
+                requestMap = null;
             }
         });
     });
@@ -47,6 +56,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (this.id === 'edit-zone-modal' && editMap) {
                     editMap.remove();
                     editMap = null;
+                }
+                if (this.id === 'view-request-map-modal' && requestMap) {
+                    requestMap.remove();
+                    requestMap = null;
                 }
             }
         });
@@ -165,13 +178,11 @@ function initAdminAddZoneMap() {
     const mapContainer = document.getElementById('admin-map-preview');
     if (!mapContainer) return;
 
-    // Удаляем старую карту, если есть
     if (adminMap) {
         adminMap.remove();
         adminMap = null;
     }
 
-    // Получаем текущие значения из полей
     let lat = 53.347996, lng = 83.779836;
     const citySelect = document.getElementById('admin-zone-city');
     const latInput = document.getElementById('admin-zone-lat');
@@ -187,26 +198,21 @@ function initAdminAddZoneMap() {
     } else if (citySelect && citySelect.value && citiesData[citySelect.value]) {
         lat = citiesData[citySelect.value].lat;
         lng = citiesData[citySelect.value].lng;
-        // Заполняем поля, если они пусты
         if (latInput) latInput.value = lat.toFixed(6);
         if (lngInput) lngInput.value = lng.toFixed(6);
     }
 
-    // Создаём карту
     adminMap = L.map(mapContainer, { zoomControl: false, attributionControl: false }).setView([lat, lng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '' }).addTo(adminMap);
 
-    // Создаём перетаскиваемый маркер
     adminMarker = L.marker([lat, lng], { draggable: true }).addTo(adminMap);
 
-    // Обработка перетаскивания маркера
     adminMarker.on('dragend', function(e) {
         const pos = e.target.getLatLng();
         latInput.value = pos.lat.toFixed(6);
         lngInput.value = pos.lng.toFixed(6);
     });
 
-    // Обновление маркера при изменении полей
     if (latInput && lngInput) {
         latInput.addEventListener('input', function() {
             const newLat = parseFloat(this.value);
@@ -226,7 +232,6 @@ function initAdminAddZoneMap() {
         });
     }
 
-    // Центрирование при смене города
     if (citySelect) {
         citySelect.addEventListener('change', function() {
             const city = this.value;
@@ -242,22 +247,11 @@ function initAdminAddZoneMap() {
     }
 }
 
-// Обновление маркера по значениям полей ввода
-function updateAdminMarkerFromInputs() {
-    const lat = parseFloat(document.getElementById('admin-zone-lat').value);
-    const lng = parseFloat(document.getElementById('admin-zone-lng').value);
-    if (!isNaN(lat) && !isNaN(lng) && adminMarker && adminMap) {
-        adminMarker.setLatLng([lat, lng]);
-        adminMap.setView([lat, lng], 15);
-    }
-}
-
 // ---------- Карта для редактирования зоны ----------
 function initEditZoneMap(zoneId, lat, lng, city) {
     const mapContainer = document.getElementById(`edit-map-preview-${zoneId}`);
     if (!mapContainer) return;
 
-    // Удаляем старую карту, если есть
     if (editMap) {
         editMap.remove();
         editMap = null;
@@ -266,21 +260,18 @@ function initEditZoneMap(zoneId, lat, lng, city) {
     editMap = L.map(mapContainer, { zoomControl: false, attributionControl: false }).setView([lat, lng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '' }).addTo(editMap);
 
-    // Создаём перетаскиваемый маркер
     editMarker = L.marker([lat, lng], { draggable: true }).addTo(editMap);
 
     const latInput = document.getElementById(`edit-lat-${zoneId}`);
     const lngInput = document.getElementById(`edit-lng-${zoneId}`);
     const citySelect = document.getElementById(`edit-city-${zoneId}`);
 
-    // Обработка перетаскивания маркера
     editMarker.on('dragend', function(e) {
         const pos = e.target.getLatLng();
         latInput.value = pos.lat.toFixed(6);
         lngInput.value = pos.lng.toFixed(6);
     });
 
-    // Обновление маркера при изменении полей
     if (latInput && lngInput) {
         latInput.addEventListener('input', function() {
             const newLat = parseFloat(this.value);
@@ -300,7 +291,6 @@ function initEditZoneMap(zoneId, lat, lng, city) {
         });
     }
 
-    // Центрирование при смене города
     if (citySelect) {
         citySelect.addEventListener('change', function() {
             const selectedCity = this.value;
@@ -314,6 +304,22 @@ function initEditZoneMap(zoneId, lat, lng, city) {
             }
         });
     }
+}
+
+// ---------- Карта для просмотра заявки ----------
+function initRequestMap(lat, lng, city) {
+    const mapContainer = document.getElementById('request-map-preview');
+    if (!mapContainer) return;
+
+    if (requestMap) {
+        requestMap.remove();
+        requestMap = null;
+    }
+
+    requestMap = L.map(mapContainer, { zoomControl: true, attributionControl: false }).setView([lat, lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '' }).addTo(requestMap);
+
+    requestMarker = L.marker([lat, lng], { draggable: false }).addTo(requestMap);
 }
 
 // ---------- Загрузка пользователей ----------
@@ -498,9 +504,7 @@ function filterZones() {
     });
 }
 
-// ---------- Удалена функция viewRequestDetails, так как кнопка просмотра убрана ----------
-
-// Принятие заявки
+// ---------- Принятие заявки ----------
 async function approveRequest(requestId) {
     if (!confirm('Вы уверены?')) return;
     try {
@@ -516,7 +520,7 @@ async function approveRequest(requestId) {
     }
 }
 
-// Отклонение заявки (исправлено: без запроса причины)
+// ---------- Отклонение заявки ----------
 async function rejectRequest(requestId) {
     if (!confirm('Вы уверены, что хотите отклонить заявку?')) return;
     try {
@@ -538,7 +542,7 @@ async function rejectRequest(requestId) {
     }
 }
 
-// Просмотр зоны на карте
+// ---------- Просмотр зоны на карте (для существующих зон) ----------
 async function viewZoneOnMap(zoneId) {
     try {
         const response = await fetch(`/api/admin/zone/${zoneId}`);
@@ -547,11 +551,42 @@ async function viewZoneOnMap(zoneId) {
             alert(zone.error);
             return;
         }
-        window.open(`/?city=${encodeURIComponent(zone.city)}&lat=${zone.lat}&lng=${zone.lng}&zoom=16&highlight=${zoneId}`, '_blank');
+        // Открываем главную страницу с параметрами (в этой же вкладке)
+        window.location.href = `/?city=${encodeURIComponent(zone.city)}&lat=${zone.lat}&lng=${zone.lng}&zoom=16&highlight=${zoneId}`;
     } catch (error) {
         console.error('Ошибка загрузки зоны:', error);
         alert('Ошибка загрузки');
     }
+}
+
+// ---------- Просмотр заявки на карте (в модальном окне) ----------
+function viewRequestOnMap(requestId, lat, lng, city) {
+    // Заполняем скрытые поля
+    document.getElementById('view-request-id').value = requestId;
+    document.getElementById('view-request-lat').value = lat;
+    document.getElementById('view-request-lng').value = lng;
+    document.getElementById('view-request-city').value = city;
+
+    // Открываем модальное окно
+    document.getElementById('view-request-map-modal').classList.add('active');
+
+    // Инициализируем карту после открытия модалки
+    setTimeout(() => initRequestMap(lat, lng, city), 200);
+}
+
+// ---------- Одобрение заявки из модального окна карты ----------
+async function approveRequestFromMap() {
+    const requestId = document.getElementById('view-request-id').value;
+    if (!requestId) return;
+    await approveRequest(requestId);
+    // После одобрения страница перезагрузится, модалка закроется автоматически
+}
+
+// ---------- Отклонение заявки из модального окна карты ----------
+async function rejectRequestFromMap() {
+    const requestId = document.getElementById('view-request-id').value;
+    if (!requestId) return;
+    await rejectRequest(requestId);
 }
 
 // ---------- Редактирование зоны с картой и полем проблем ----------
@@ -569,7 +604,6 @@ async function editZone(zoneId) {
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         };
 
-        // Определяем значение для поля проблем: если задано ручное, используем его, иначе реальное
         const problemsValue = zone.manual_problems_count !== null && zone.manual_problems_count !== undefined
             ? zone.manual_problems_count
             : zone.problems_count;
@@ -658,7 +692,6 @@ async function editZone(zoneId) {
 
         setTimeout(() => initEditZoneMap(zoneId, zone.lat, zone.lng, zone.city), 200);
 
-        // Обработчик кнопки синхронизации статуса
         document.getElementById(`sync-status-btn-${zoneId}`).addEventListener('click', async function() {
             const btn = this;
             btn.disabled = true;
@@ -673,7 +706,6 @@ async function editZone(zoneId) {
                     body: JSON.stringify({ problems_count: parseInt(newCount) })
                 });
 
-                // Читаем ответ один раз как текст
                 const responseText = await response.text();
                 let data;
                 try {
@@ -687,13 +719,11 @@ async function editZone(zoneId) {
                 }
 
                 if (data.success) {
-                    // Обновить выпадающий список статуса
                     const statusSelect = document.getElementById(`edit-status-${zoneId}`);
                     if (statusSelect) {
                         statusSelect.value = data.new_status;
                     }
 
-                    // Обновить строку в таблице зон (если открыта вкладка «Все зоны»)
                     const row = document.getElementById(`zone-row-${zoneId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:nth-child(5)');
@@ -771,7 +801,6 @@ async function updateZone(zoneId) {
             body: JSON.stringify(formData)
         });
 
-        // Читаем ответ один раз как текст
         const responseText = await response.text();
         let data;
         try {
