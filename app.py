@@ -551,7 +551,8 @@ def get_analytics_data():
     ).fetchall()
     status_counts = {}
     for stat in status_stats:
-        status_counts[stat['status']] = stat['count']
+        # Приводим статус к нижнему регистру для сопоставления с labels
+        status_counts[stat['status'].lower()] = stat['count']
     status_labels = [
         'отличный', 'хороший', 'удовлетворительный',
         'требует ухода', 'критический'
