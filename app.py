@@ -5,7 +5,7 @@ from auth import auth_bp
 from config import Config
 import json
 from datetime import datetime
-from utils import calculate_zone_stats, generate_predictions, \
+from utils import calculate_zone_stats, generate_predictions, estimate_maintenance_cost, \
     get_status_color, get_type_icon, format_date
 import sqlite3
 import re
@@ -35,6 +35,7 @@ with app.app_context():
     print("✓ Система готова к работе")
     print("=" * 50)
 
+
 # Функция получения списка активных городов из БД
 def get_cities_from_db():
     conn = get_db()
@@ -47,6 +48,7 @@ def get_cities_from_db():
         for row in cities
     }
 
+
 # Функция получения списка активных типов зон из БД
 def get_zone_types_from_db():
     conn = get_db()
@@ -55,6 +57,7 @@ def get_zone_types_from_db():
     ).fetchall()
     conn.close()
     return [row['name'] for row in zone_types]
+
 
 # Функция получения списка активных статусов зон из БД
 def get_statuses_from_db():
@@ -65,6 +68,7 @@ def get_statuses_from_db():
     conn.close()
     return {row['name']: {'color': row['color'], 'icon': row['icon']} for row in statuses}
 
+
 # Функция получения списка активных типов проблем из БД
 def get_problem_types_from_db():
     conn = get_db()
@@ -74,6 +78,7 @@ def get_problem_types_from_db():
     conn.close()
     return [row['name'] for row in problem_types]
 
+
 # Функция преобразования sqlite3.Row в словарь
 def row_to_dict(row):
     if row is None:
@@ -81,6 +86,7 @@ def row_to_dict(row):
     if isinstance(row, sqlite3.Row):
         return dict(row)
     return dict(row)
+
 
 # Функция получения всех справочных данных (города, типы зон, статусы, типы проблем)
 def get_dictionaries():
@@ -115,6 +121,7 @@ def get_dictionaries():
     conn.close()
     return cities, zone_types, statuses, problem_types
 
+
 # Функция корректировки статуса зоны с учётом количества проблем
 def get_adjusted_status(original_status, problems_count):
     status_order = [
@@ -128,6 +135,7 @@ def get_adjusted_status(original_status, problems_count):
         return status_order[new_index]
     except ValueError:
         return original_status
+
 
 # Главная страница с картой
 @app.route('/')
@@ -145,6 +153,7 @@ def index():
         zone_types=get_zone_types_from_db(),
         user=session.get('user')
     )
+
 
 # API для получения списка зон в городе
 @app.route('/api/zones')
@@ -189,6 +198,7 @@ def get_zones():
     conn.close()
     return jsonify(zones_data)
 
+
 # API для получения детальной информации о зоне
 @app.route('/api/zone/<int:zone_id>')
 def get_zone_details(zone_id):
@@ -225,6 +235,7 @@ def get_zone_details(zone_id):
         'problems': [row_to_dict(p) for p in problems],
         'maintenance': [row_to_dict(m) for m in maintenance]
     })
+
 
 # API для отправки сообщения о проблеме в зоне
 @app.route('/api/report-problem', methods=['POST'])
@@ -268,6 +279,8 @@ def report_problem():
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
 # Панель администратора
 @app.route('/admin')
 def admin_panel():
@@ -331,6 +344,7 @@ def admin_panel():
         user=session.get('user')
     )
 
+
 # API для получения деталей заявки на добавление зоны
 @app.route('/api/admin/request/<int:request_id>')
 def get_request_details(request_id):
@@ -351,6 +365,7 @@ def get_request_details(request_id):
     if not request_data:
         return jsonify({'error': 'Request not found'}), 404
     return jsonify(row_to_dict(request_data))
+
 
 # API для одобрения заявки на добавление зоны
 @app.route('/api/admin/approve-zone/<int:request_id>', methods=['POST'])
@@ -390,6 +405,7 @@ def approve_zone(request_id):
     conn.close()
     return jsonify({'success': True})
 
+
 # API для отклонения заявки на добавление зоны (исправлено: убрано поле rejection_reason)
 @app.route('/api/admin/reject-zone/<int:request_id>', methods=['POST'])
 def reject_zone(request_id):
@@ -404,6 +420,7 @@ def reject_zone(request_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
 
 # Страница добавления новой зоны (для пользователей)
 @app.route('/add-zone', methods=['GET', 'POST'])
@@ -445,6 +462,7 @@ def add_zone():
         statuses=Config.STATUSES,
         user=session.get('user')
     )
+
 
 # Страница аналитики
 @app.route('/analytics')
@@ -495,6 +513,10 @@ def analytics():
     zones_data = [row_to_dict(z) for z in zones]
     stats = calculate_zone_stats(zones_data)
     predictions = generate_predictions(zones_data)
+
+    # Расчёт затрат
+    costs = estimate_maintenance_cost(zones_data, city)
+
     conn.close()
     cities, zone_types, statuses, problem_types = get_dictionaries()
     return render_template(
@@ -508,8 +530,10 @@ def analytics():
         problem_stats=[row_to_dict(p) for p in problem_stats],
         stats=stats,
         predictions=predictions,
+        costs=costs,  # ← добавлено
         user=session.get('user')
     )
+
 
 # API для получения данных аналитики (метрики и распределения)
 @app.route('/api/analytics/data')
@@ -584,6 +608,7 @@ def get_analytics_data():
         }
     })
 
+
 # API для получения детальной статистики по типам зон
 @app.route('/api/analytics/detailed')
 def get_detailed_stats():
@@ -610,6 +635,7 @@ def get_detailed_stats():
         'zones': [row_to_dict(z) for z in zones_stats]
     })
 
+
 # API для получения прогнозов состояния зон и бюджета
 @app.route('/api/analytics/predictions')
 def get_predictions():
@@ -621,6 +647,8 @@ def get_predictions():
     ).fetchall()
     zones_data = [row_to_dict(z) for z in zones]
     conn.close()
+
+    # Прогнозы состояний
     predictions = generate_predictions(zones_data)
     status_prediction = {
         'improve': len([p for p in predictions if p['priority'] == 'низкий']),
@@ -638,10 +666,22 @@ def get_predictions():
             recommendations.append(
                 f"Зона '{pred['zone_name']}': {pred['prediction']}"
             )
+
+    # Расчёт бюджета
+    costs = estimate_maintenance_cost(zones_data, city)
+    budget_data = {
+        'monthly': costs['total_monthly'],
+        'quarterly': costs['total_quarterly'],
+        'annual': costs['total_annual'],
+        'recommended': costs['total_annual'] * 1.2  # пример резерва
+    }
+
     return jsonify({
         'status': status_prediction,
+        'budget': budget_data,  # ← добавлено
         'recommendations': recommendations[:5]
     })
+
 
 # API для получения данных для графиков аналитики
 @app.route('/api/analytics/chart/<chart_type>')
@@ -668,6 +708,7 @@ def get_chart_data(chart_type):
     conn.close()
     return jsonify(data)
 
+
 # API для получения списка пользователей (для администраторов)
 @app.route('/api/admin/users')
 def get_users():
@@ -678,6 +719,7 @@ def get_users():
     users = conn.execute('SELECT * FROM users ORDER BY id').fetchall()
     conn.close()
     return jsonify([row_to_dict(u) for u in users])
+
 
 # API для получения статистики для панели администратора
 @app.route('/api/admin/statistics')
@@ -723,6 +765,7 @@ def get_admin_statistics():
         'zones_by_city': {row['city']: row['count'] for row in zones_by_city}
     })
 
+
 # API для назначения пользователя младшим администратором
 @app.route('/api/admin/promote-junior-admin/<int:user_id>', methods=['POST'])
 def promote_junior_admin(user_id):
@@ -749,6 +792,7 @@ def promote_junior_admin(user_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True, 'message': 'Пользователь назначен младшим администратором'})
+
 
 # API для назначения пользователя модератором
 @app.route('/api/admin/promote-moderator/<int:user_id>', methods=['POST'])
@@ -777,6 +821,7 @@ def promote_moderator(user_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True, 'message': 'Пользователь назначен модератором'})
+
 
 # API для понижения пользователя до обычного
 @app.route('/api/admin/demote-user/<int:user_id>', methods=['POST'])
@@ -817,6 +862,7 @@ def demote_user(user_id):
     conn.close()
     return jsonify({'success': True, 'message': 'Пользователь понижен до обычного пользователя'})
 
+
 # API для удаления пользователя (только супер-администратор)
 @app.route('/api/admin/delete-user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -850,6 +896,7 @@ def delete_user(user_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True, 'message': 'Пользователь удален'})
+
 
 # API для управления зоной (получить, обновить, удалить)
 @app.route('/api/admin/zone/<int:zone_id>', methods=['GET', 'PUT', 'DELETE'])
@@ -938,6 +985,7 @@ def manage_zone(zone_id):
         conn.close()
         return jsonify({'success': True, 'message': 'Зона удалена'})
 
+
 # Новый эндпоинт: синхронизация статуса зоны с учётом ручного количества проблем
 @app.route('/api/admin/zone/<int:zone_id>/sync-status', methods=['POST'])
 def sync_zone_status(zone_id):
@@ -977,6 +1025,7 @@ def sync_zone_status(zone_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True, 'new_status': adjusted_status})
+
 
 # API для добавления зоны администратором или модератором
 @app.route('/api/admin/add-zone', methods=['POST'])
@@ -1027,6 +1076,7 @@ def admin_add_zone():
         print(f"Ошибка добавления зоны: {e}")
         return jsonify({'error': f'Ошибка базы данных: {str(e)}'}), 500
 
+
 # API для получения элементов справочника
 @app.route('/api/dictionaries/<dict_type>')
 def get_dictionary(dict_type):
@@ -1044,6 +1094,7 @@ def get_dictionary(dict_type):
         return jsonify({'error': 'Invalid dictionary type'}), 400
     conn.close()
     return jsonify([row_to_dict(row) for row in data])
+
 
 # API для активации/деактивации элемента справочника
 @app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>/toggle', methods=['POST'])
@@ -1079,6 +1130,7 @@ def toggle_dictionary_item(dict_type, item_id):
     action = 'активирован' if new_active == 1 else 'деактивирован'
     return jsonify({'success': True, 'message': f'Элемент {action}'})
 
+
 # API для полного удаления элемента справочника
 @app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['DELETE'])
 def delete_dictionary_item(dict_type, item_id):
@@ -1104,6 +1156,7 @@ def delete_dictionary_item(dict_type, item_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True, 'message': 'Элемент полностью удален'})
+
 
 # API для добавления элемента в справочник
 @app.route('/api/admin/dictionaries/<dict_type>', methods=['POST'])
@@ -1164,6 +1217,7 @@ def add_dictionary_item(dict_type):
     except sqlite3.IntegrityError:
         conn.close()
         return jsonify({'error': 'Элемент с таким именем уже существует'}), 400
+
 
 # API для обновления элемента справочника
 @app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['PUT'])
@@ -1238,6 +1292,7 @@ def update_dictionary_item(dict_type, item_id):
     except Exception as e:
         conn.close()
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
