@@ -530,16 +530,17 @@ def analytics():
         problem_stats=[row_to_dict(p) for p in problem_stats],
         stats=stats,
         predictions=predictions,
-        costs=costs,  # ← добавлено
+        costs=costs,
         user=session.get('user')
     )
-
 
 # API для получения данных аналитики (метрики и распределения)
 @app.route('/api/analytics/data')
 def get_analytics_data():
     city = request.args.get('city', 'Барнаул')
     conn = get_db()
+
+    # Статусы (с приведением к нижнему регистру)
     status_stats = conn.execute(
         '''
         SELECT status, COUNT(*) as count
@@ -551,13 +552,14 @@ def get_analytics_data():
     ).fetchall()
     status_counts = {}
     for stat in status_stats:
-        # Приводим статус к нижнему регистру для сопоставления с labels
         status_counts[stat['status'].lower()] = stat['count']
     status_labels = [
         'отличный', 'хороший', 'удовлетворительный',
         'требует ухода', 'критический'
     ]
     status_values = [status_counts.get(label, 0) for label in status_labels]
+
+    # Типы зон
     type_stats = conn.execute(
         '''
         SELECT type, COUNT(*) as count
@@ -569,24 +571,35 @@ def get_analytics_data():
     ).fetchall()
     type_labels = [row['type'] for row in type_stats]
     type_values = [row['count'] for row in type_stats]
+
+    # Получаем все активные типы проблем из справочника (приводим к нижнему регистру)
+    all_problem_types = [row['name'].lower() for row in conn.execute(
+        'SELECT name FROM problem_types WHERE is_active = 1 ORDER BY name'
+    ).fetchall()]
+
+    # Получаем статистику по проблемам для выбранного города (также в нижнем регистре)
     problem_stats = conn.execute(
         '''
-        SELECT problem_type, COUNT(*) as count
+        SELECT LOWER(problem_type) as problem_type, COUNT(*) as count
         FROM problem_reports pr
         JOIN zones z ON pr.zone_id = z.id
         WHERE z.city = ? AND pr.status = 'new'
-        GROUP BY problem_type
+        GROUP BY LOWER(problem_type)
         ''',
         (city,)
     ).fetchall()
-    problem_labels = [row['problem_type'] for row in problem_stats]
-    problem_values = [row['count'] for row in problem_stats]
+    counts = {row['problem_type']: row['count'] for row in problem_stats}
+    problem_labels = all_problem_types
+    problem_values = [counts.get(pt, 0) for pt in all_problem_types]
+
+    # Общая статистика для метрик
     zones = conn.execute(
         'SELECT * FROM zones WHERE city = ? AND is_approved = 1',
         (city,)
     ).fetchall()
     zones_data = [row_to_dict(z) for z in zones]
     stats = calculate_zone_stats(zones_data)
+
     conn.close()
     return jsonify({
         'metrics': {
@@ -679,7 +692,7 @@ def get_predictions():
 
     return jsonify({
         'status': status_prediction,
-        'budget': budget_data,  # ← добавлено
+        'budget': budget_data,
         'recommendations': recommendations[:5]
     })
 
@@ -689,7 +702,10 @@ def get_predictions():
 def get_chart_data(chart_type):
     city = request.args.get('city', 'Барнаул')
     conn = get_db()
+
     if chart_type == 'problem-types':
+        # Для совместимости со старыми вызовами оставляем этот эндпоинт,
+        # но теперь он возвращает данные в формате, ожидаемом функцией createProblemTypesChart
         problem_stats = conn.execute(
             '''
             SELECT problem_type, COUNT(*) as count
@@ -704,8 +720,34 @@ def get_chart_data(chart_type):
             'labels': [p['problem_type'] for p in problem_stats],
             'values': [p['count'] for p in problem_stats]
         }
+    elif chart_type == 'maintenance-costs':
+        # График затрат на обслуживание по типам зон
+        zones = conn.execute(
+            'SELECT type, status FROM zones WHERE city = ? AND is_approved = 1',
+            (city,)
+        ).fetchall()
+        # Группируем по типам зон и суммируем затраты (условно)
+        cost_per_hectare = {
+            'Отличный': 5000,
+            'Хороший': 7500,
+            'Удовлетворительный': 10000,
+            'Требует ухода': 15000,
+            'Критический': 25000
+        }
+        type_costs = {}
+        for zone in zones:
+            zone_type = zone['type']
+            status = zone['status']
+            cost = cost_per_hectare.get(status, 10000)  # берём условную стоимость за гектар
+            type_costs[zone_type] = type_costs.get(zone_type, 0) + cost
+
+        data = {
+            'labels': list(type_costs.keys()),
+            'values': [round(c / 1000, 1) for c in type_costs.values()]  # в тыс. руб
+        }
     else:
         data = {'error': 'Invalid chart type'}
+
     conn.close()
     return jsonify(data)
 
