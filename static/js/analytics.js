@@ -38,7 +38,7 @@ function getChartColors() {
 class AnalyticsDashboard {
     constructor() {
         this.charts = {};
-        this.currentCity = document.getElementById('analytics-city')?.value || window.currentCity || '{{ city }}';
+        this.currentCity = document.getElementById('analytics-city')?.value || window.currentCity || 'Барнаул';
         this.currentPeriod = 'month';
         this.initialize();
     }
@@ -147,6 +147,13 @@ class AnalyticsDashboard {
 
         const colors = getChartColors();
 
+        // Проверка наличия данных
+        const hasData = distribution.values.some(v => v > 0);
+        if (!hasData) {
+            this.showNoDataMessage(ctx.canvas, 'Нет данных по статусам');
+            return;
+        }
+
         this.charts.status = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -190,6 +197,12 @@ class AnalyticsDashboard {
         }
 
         const colors = getChartColors();
+
+        // Проверка наличия данных
+        if (!distribution.labels || distribution.labels.length === 0) {
+            this.showNoDataMessage(ctx.canvas, 'Нет данных по типам зон');
+            return;
+        }
 
         this.charts.type = new Chart(ctx, {
             type: 'bar',
@@ -244,8 +257,17 @@ class AnalyticsDashboard {
             colors.gray,
             colors.needsCare,
             colors.critical,
-            colors.accent
+            colors.accent,
+            colors.good,
+            colors.satisfactory
         ];
+
+        // Проверка наличия данных
+        const hasData = data.values.some(v => v > 0);
+        if (!hasData || data.labels.length === 0) {
+            this.showNoDataMessage(ctx.canvas, 'Нет данных по проблемам');
+            return;
+        }
 
         this.charts.problems = new Chart(ctx, {
             type: 'pie',
@@ -274,6 +296,17 @@ class AnalyticsDashboard {
         });
     }
 
+    // Отображение сообщения об отсутствии данных на canvas
+    showNoDataMessage(canvas, message) {
+        const parent = canvas.parentNode;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = '14px Arial';
+        ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#fff' : '#666';
+        ctx.textAlign = 'center';
+        ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+    }
+
     // Загрузка данных для графика затрат
     async loadCostsChart() {
         try {
@@ -284,6 +317,10 @@ class AnalyticsDashboard {
             this.renderCostsChart(data);
         } catch (error) {
             console.error('Ошибка загрузки графика затрат:', error);
+            const canvas = document.getElementById('costs-chart');
+            if (canvas) {
+                this.showNoDataMessage(canvas, 'Данные по затратам временно недоступны');
+            }
         }
     }
 
@@ -297,6 +334,12 @@ class AnalyticsDashboard {
         }
 
         const colors = getChartColors();
+
+        // Проверка наличия данных
+        if (!data.labels || data.labels.length === 0) {
+            this.showNoDataMessage(ctx.canvas, 'Нет данных по затратам');
+            return;
+        }
 
         this.charts.costs = new Chart(ctx, {
             type: 'bar',

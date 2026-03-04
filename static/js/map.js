@@ -344,6 +344,11 @@ window.submitReport = async function(zoneId) {
             alert('Отчёт отправлен успешно!');
             closeCustomModal();
             loadZones();
+
+            // Обновляем данные аналитики, если страница аналитики открыта
+            if (window.analyticsDashboard && typeof window.analyticsDashboard.reloadAllData === 'function') {
+                window.analyticsDashboard.reloadAllData();
+            }
         } else {
             alert(data.error || 'Ошибка отправки отчёта');
         }
