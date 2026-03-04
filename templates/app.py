@@ -1,0 +1,1298 @@
+# app.py
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
+from database import get_db, init_db, check_database_exists, backup_database
+from auth import auth_bp
+from config import Config
+import json
+from datetime import datetime
+from utils import calculate_zone_stats, generate_predictions, estimate_maintenance_cost, \
+    get_status_color, get_type_icon, format_date
+import sqlite3
+import re
+
+app = Flask(__name__)
+app.config.from_object(Config)
+app.secret_key = Config.SECRET_KEY
+
+# Регистрация blueprint для аутентификации
+app.register_blueprint(auth_bp, url_prefix='/auth')
+
+# Инициализация базы данных при запуске приложения
+with app.app_context():
+    print("=" * 50)
+    print("Запуск системы ЭКОПУЛЬС")
+    print("=" * 50)
+
+    if check_database_exists():
+        print(f"✓ База данных найдена: {Config.DATABASE_PATH}")
+        print("✓ Проверяем структуру базы данных...")
+    else:
+        print(f"✗ База данных не найдена: {Config.DATABASE_PATH}")
+        print("✓ Создаем новую базу данных...")
+
+    init_db(force=False)
+
+    print("✓ Система готова к работе")
+    print("=" * 50)
+
+
+# Функция получения списка активных городов из БД
+def get_cities_from_db():
+    conn = get_db()
+    cities = conn.execute(
+        'SELECT * FROM cities WHERE is_active = 1 ORDER BY name'
+    ).fetchall()
+    conn.close()
+    return {
+        row['name']: {'lat': row['lat'], 'lng': row['lng'], 'zoom': row['zoom']}
+        for row in cities
+    }
+
+
+# Функция получения списка активных типов зон из БД
+def get_zone_types_from_db():
+    conn = get_db()
+    zone_types = conn.execute(
+        'SELECT name FROM zone_types WHERE is_active = 1 ORDER BY name'
+    ).fetchall()
+    conn.close()
+    return [row['name'] for row in zone_types]
+
+
+# Функция получения списка активных статусов зон из БД
+def get_statuses_from_db():
+    conn = get_db()
+    statuses = conn.execute(
+        'SELECT * FROM zone_statuses WHERE is_active = 1 ORDER BY priority DESC'
+    ).fetchall()
+    conn.close()
+    return {row['name']: {'color': row['color'], 'icon': row['icon']} for row in statuses}
+
+
+# Функция получения списка активных типов проблем из БД
+def get_problem_types_from_db():
+    conn = get_db()
+    problem_types = conn.execute(
+        'SELECT name FROM problem_types WHERE is_active = 1 ORDER BY name'
+    ).fetchall()
+    conn.close()
+    return [row['name'] for row in problem_types]
+
+
+# Функция преобразования sqlite3.Row в словарь
+def row_to_dict(row):
+    if row is None:
+        return None
+    if isinstance(row, sqlite3.Row):
+        return dict(row)
+    return dict(row)
+
+
+# Функция получения всех справочных данных (города, типы зон, статусы, типы проблем)
+def get_dictionaries():
+    conn = get_db()
+
+    cities_data = conn.execute(
+        'SELECT * FROM cities WHERE is_active = 1 ORDER BY name'
+    ).fetchall()
+    cities = {
+        row['name']: {'lat': row['lat'], 'lng': row['lng'], 'zoom': row['zoom']}
+        for row in cities_data
+    }
+
+    zone_types_data = conn.execute(
+        'SELECT * FROM zone_types WHERE is_active = 1 ORDER BY name'
+    ).fetchall()
+    zone_types = [row['name'] for row in zone_types_data]
+
+    statuses_data = conn.execute(
+        'SELECT * FROM zone_statuses WHERE is_active = 1 ORDER BY priority DESC'
+    ).fetchall()
+    statuses = {
+        row['name']: {'color': row['color'], 'icon': row['icon']}
+        for row in statuses_data
+    }
+
+    problem_types_data = conn.execute(
+        'SELECT * FROM problem_types WHERE is_active = 1 ORDER BY name'
+    ).fetchall()
+    problem_types = [row['name'] for row in problem_types_data]
+
+    conn.close()
+    return cities, zone_types, statuses, problem_types
+
+
+# Функция корректировки статуса зоны с учётом количества проблем
+def get_adjusted_status(original_status, problems_count):
+    status_order = [
+        'Отличный', 'Хороший', 'Удовлетворительный',
+        'Требует ухода', 'Критический'
+    ]
+    try:
+        current_index = status_order.index(original_status)
+        status_drop = min(problems_count // 2, 4)
+        new_index = min(current_index + status_drop, 4)
+        return status_order[new_index]
+    except ValueError:
+        return original_status
+
+
+# Главная страница с картой
+@app.route('/')
+def index():
+    city = request.args.get('city', 'Барнаул')
+    cities = get_cities_from_db()
+    if city not in cities:
+        city = 'Барнаул'
+    session['current_city'] = city
+    return render_template(
+        'index.html',
+        city=city,
+        cities=cities,
+        statuses=get_statuses_from_db(),
+        zone_types=get_zone_types_from_db(),
+        user=session.get('user')
+    )
+
+
+# API для получения списка зон в городе
+@app.route('/api/zones')
+def get_zones():
+    city = request.args.get('city', 'Барнаул')
+    conn = get_db()
+    zones = conn.execute(
+        '''
+        SELECT id, name, type, status, lat, lng, manual_problems_count
+        FROM zones
+        WHERE city = ? AND is_approved = 1
+        ''',
+        (city,)
+    ).fetchall()
+
+    zones_data = []
+    for zone in zones:
+        # Реальное количество проблем
+        real_problems = conn.execute(
+            'SELECT COUNT(*) as count FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone['id'],)
+        ).fetchone()['count']
+
+        # Выбираем, какое значение использовать для расчёта статуса
+        manual = zone['manual_problems_count']
+        problems_count = manual if manual is not None else real_problems
+
+        # Скорректированный статус
+        adjusted_status = get_adjusted_status(zone['status'], problems_count)
+
+        zones_data.append({
+            'id': zone['id'],
+            'name': zone['name'],
+            'type': zone['type'],
+            'status': adjusted_status,
+            'lat': zone['lat'],
+            'lng': zone['lng'],
+            'problems_count': problems_count,
+            'original_status': zone['status']
+        })
+
+    conn.close()
+    return jsonify(zones_data)
+
+
+# API для получения детальной информации о зоне
+@app.route('/api/zone/<int:zone_id>')
+def get_zone_details(zone_id):
+    conn = get_db()
+    zone = conn.execute('SELECT * FROM zones WHERE id = ?', (zone_id,)).fetchone()
+    if not zone:
+        conn.close()
+        return jsonify({'error': 'Zone not found'}), 404
+    problems = conn.execute(
+        '''
+        SELECT pr.*, u.name as user_name
+        FROM problem_reports pr
+        JOIN users u ON pr.user_id = u.id
+        WHERE pr.zone_id = ?
+        ORDER BY pr.created_at DESC
+        LIMIT 5
+        ''',
+        (zone_id,)
+    ).fetchall()
+    maintenance = conn.execute(
+        '''
+        SELECT ml.*, u.name as user_name
+        FROM maintenance_logs ml
+        JOIN users u ON ml.user_id = u.id
+        WHERE ml.zone_id = ?
+        ORDER BY ml.performed_at DESC
+        LIMIT 5
+        ''',
+        (zone_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        'zone': row_to_dict(zone),
+        'problems': [row_to_dict(p) for p in problems],
+        'maintenance': [row_to_dict(m) for m in maintenance]
+    })
+
+
+# API для отправки сообщения о проблеме в зоне
+@app.route('/api/report-problem', methods=['POST'])
+def report_problem():
+    if 'user' not in session:
+        return jsonify({'error': 'Требуется авторизация'}), 401
+
+    data = request.get_json()
+    zone_id = data['zone_id']
+    conn = get_db()
+
+    # 1. Сохраняем жалобу
+    conn.execute(
+        '''
+        INSERT INTO problem_reports (zone_id, user_id, problem_type, description)
+        VALUES (?, ?, ?, ?)
+        ''',
+        (zone_id, session['user']['id'], data['problem_type'], data['description'])
+    )
+
+    # 2. Получаем текущую информацию о зоне
+    zone = conn.execute(
+        'SELECT status, manual_problems_count FROM zones WHERE id = ?',
+        (zone_id,)
+    ).fetchone()
+
+    # 3. Если ручное количество проблем НЕ задано – пересчитываем статус
+    if zone and zone['manual_problems_count'] is None:
+        real_problems = conn.execute(
+            'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone_id,)
+        ).fetchone()['cnt']
+
+        new_status = get_adjusted_status(zone['status'], real_problems)
+        if new_status != zone['status']:
+            conn.execute(
+                'UPDATE zones SET status = ? WHERE id = ?',
+                (new_status, zone_id)
+            )
+
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# Панель администратора
+@app.route('/admin')
+def admin_panel():
+    user = session.get('user')
+    if not user:
+        flash('Требуется авторизация', 'danger')
+        return redirect(url_for('auth.login'))
+    role = user.get('role')
+    if role not in ['super_admin', 'junior_admin', 'moderator']:
+        flash('Требуются права администратора или модератора', 'danger')
+        return redirect(url_for('auth.login'))
+    conn = get_db()
+    requests = conn.execute(
+        '''
+        SELECT zr.*, u.name as user_name, u.email as user_email
+        FROM zone_requests zr
+        JOIN users u ON zr.user_id = u.id
+        WHERE zr.status = 'pending'
+        ORDER BY zr.created_at DESC
+        '''
+    ).fetchall()
+
+    # Получаем все зоны с создателем
+    zones = conn.execute(
+        '''
+        SELECT z.*, u.name as creator_name
+        FROM zones z
+        JOIN users u ON z.created_by = u.id
+        ORDER BY z.created_at DESC
+        '''
+    ).fetchall()
+
+    # Собираем реальное количество проблем для каждой зоны
+    cursor = conn.execute(
+        "SELECT zone_id, COUNT(*) as cnt FROM problem_reports WHERE status = 'new' GROUP BY zone_id"
+    )
+    problems_counts = {row['zone_id']: row['cnt'] for row in cursor.fetchall()}
+
+    zones_list = []
+    for zone in zones:
+        zone_dict = row_to_dict(zone)
+        zone_id = zone_dict['id']
+        real_problems = problems_counts.get(zone_id, 0)
+        # Если задано ручное значение, используем его
+        manual = zone_dict.get('manual_problems_count')
+        problems_count = manual if manual is not None else real_problems
+        zone_dict['problems_count'] = problems_count
+        zone_dict['adjusted_status'] = get_adjusted_status(zone_dict['status'], problems_count)
+        zones_list.append(zone_dict)
+
+    user_count = conn.execute('SELECT COUNT(*) as count FROM users').fetchone()['count']
+    conn.close()
+    return render_template(
+        'admin.html',
+        requests=[row_to_dict(r) for r in requests],
+        zones=zones_list,
+        user_count=user_count,
+        cities=get_cities_from_db(),
+        statuses=get_statuses_from_db(),
+        zone_types=get_zone_types_from_db(),
+        user=session.get('user')
+    )
+
+
+# API для получения деталей заявки на добавление зоны
+@app.route('/api/admin/request/<int:request_id>')
+def get_request_details(request_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    request_data = conn.execute(
+        '''
+        SELECT zr.*, u.name as user_name, u.email as user_email
+        FROM zone_requests zr
+        JOIN users u ON zr.user_id = u.id
+        WHERE zr.id = ?
+        ''',
+        (request_id,)
+    ).fetchone()
+    conn.close()
+    if not request_data:
+        return jsonify({'error': 'Request not found'}), 404
+    return jsonify(row_to_dict(request_data))
+
+
+# API для одобрения заявки на добавление зоны
+@app.route('/api/admin/approve-zone/<int:request_id>', methods=['POST'])
+def approve_zone(request_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    zone_request = conn.execute(
+        'SELECT * FROM zone_requests WHERE id = ?',
+        (request_id,)
+    ).fetchone()
+    if not zone_request:
+        conn.close()
+        return jsonify({'error': 'Request not found'}), 404
+    conn.execute(
+        '''
+        INSERT INTO zones (
+            name, city, type, status, lat, lng, created_by, is_approved
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        ''',
+        (
+            zone_request['name'],
+            zone_request['city'],
+            zone_request['type'],
+            'Удовлетворительный',
+            zone_request['lat'],
+            zone_request['lng'],
+            zone_request['user_id']
+        )
+    )
+    conn.execute(
+        'UPDATE zone_requests SET status = "approved" WHERE id = ?',
+        (request_id,)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# API для отклонения заявки на добавление зоны (исправлено: убрано поле rejection_reason)
+@app.route('/api/admin/reject-zone/<int:request_id>', methods=['POST'])
+def reject_zone(request_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    conn.execute(
+        'UPDATE zone_requests SET status = "rejected" WHERE id = ?',
+        (request_id,)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# Страница добавления новой зоны (для пользователей)
+@app.route('/add-zone', methods=['GET', 'POST'])
+def add_zone():
+    if 'user' not in session:
+        flash('Требуется авторизация', 'danger')
+        return redirect(url_for('auth.login'))
+    if request.method == 'POST':
+        name = request.form.get('name')
+        city = request.form.get('city')
+        zone_type = request.form.get('type')
+        lat = request.form.get('lat')
+        lng = request.form.get('lng')
+        try:
+            lat = float(lat)
+            lng = float(lng)
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                flash('Некорректные координаты', 'danger')
+                return redirect(url_for('add_zone'))
+        except ValueError:
+            flash('Некорректные координаты', 'danger')
+            return redirect(url_for('add_zone'))
+        conn = get_db()
+        conn.execute(
+            '''
+            INSERT INTO zone_requests (user_id, name, city, type, lat, lng)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ''',
+            (session['user']['id'], name, city, zone_type, lat, lng)
+        )
+        conn.commit()
+        conn.close()
+        flash('Заявка на добавление зоны отправлена на рассмотрение', 'success')
+        return redirect(url_for('index'))
+    return render_template(
+        'add_zone.html',
+        cities=Config.CITIES,
+        zone_types=Config.ZONE_TYPES,
+        statuses=Config.STATUSES,
+        user=session.get('user')
+    )
+
+
+# Страница аналитики
+@app.route('/analytics')
+def analytics():
+    city = request.args.get('city', 'Барнаул')
+    conn = get_db()
+    city_exists = conn.execute(
+        'SELECT COUNT(*) as count FROM cities WHERE name = ? AND is_active = 1',
+        (city,)
+    ).fetchone()['count']
+    if not city_exists:
+        default_city = conn.execute(
+            'SELECT name FROM cities WHERE is_active = 1 ORDER BY name LIMIT 1'
+        ).fetchone()
+        city = default_city['name'] if default_city else 'Барнаул'
+    status_stats = conn.execute(
+        '''
+        SELECT status, COUNT(*) as count
+        FROM zones
+        WHERE city = ? AND is_approved = 1
+        GROUP BY status
+        ''',
+        (city,)
+    ).fetchall()
+    type_stats = conn.execute(
+        '''
+        SELECT type, COUNT(*) as count
+        FROM zones
+        WHERE city = ? AND is_approved = 1
+        GROUP BY type
+        ''',
+        (city,)
+    ).fetchall()
+    problem_stats = conn.execute(
+        '''
+        SELECT problem_type, COUNT(*) as count
+        FROM problem_reports pr
+        JOIN zones z ON pr.zone_id = z.id
+        WHERE z.city = ? AND pr.status = 'new'
+        GROUP BY problem_type
+        ''',
+        (city,)
+    ).fetchall()
+    zones = conn.execute(
+        'SELECT * FROM zones WHERE city = ? AND is_approved = 1',
+        (city,)
+    ).fetchall()
+    zones_data = [row_to_dict(z) for z in zones]
+    stats = calculate_zone_stats(zones_data)
+    predictions = generate_predictions(zones_data)
+
+    # Расчёт затрат
+    costs = estimate_maintenance_cost(zones_data, city)
+
+    conn.close()
+    cities, zone_types, statuses, problem_types = get_dictionaries()
+    return render_template(
+        'analytics.html',
+        city=city,
+        cities=cities,
+        statuses=statuses,
+        zone_types=zone_types,
+        status_stats=[row_to_dict(s) for s in status_stats],
+        type_stats=[row_to_dict(t) for t in type_stats],
+        problem_stats=[row_to_dict(p) for p in problem_stats],
+        stats=stats,
+        predictions=predictions,
+        costs=costs,  # ← добавлено
+        user=session.get('user')
+    )
+
+
+# API для получения данных аналитики (метрики и распределения)
+@app.route('/api/analytics/data')
+def get_analytics_data():
+    city = request.args.get('city', 'Барнаул')
+    conn = get_db()
+    status_stats = conn.execute(
+        '''
+        SELECT status, COUNT(*) as count
+        FROM zones
+        WHERE city = ? AND is_approved = 1
+        GROUP BY status
+        ''',
+        (city,)
+    ).fetchall()
+    status_counts = {}
+    for stat in status_stats:
+        status_counts[stat['status']] = stat['count']
+    status_labels = [
+        'отличный', 'хороший', 'удовлетворительный',
+        'требует ухода', 'критический'
+    ]
+    status_values = [status_counts.get(label, 0) for label in status_labels]
+    type_stats = conn.execute(
+        '''
+        SELECT type, COUNT(*) as count
+        FROM zones
+        WHERE city = ? AND is_approved = 1
+        GROUP BY type
+        ''',
+        (city,)
+    ).fetchall()
+    type_labels = [row['type'] for row in type_stats]
+    type_values = [row['count'] for row in type_stats]
+    problem_stats = conn.execute(
+        '''
+        SELECT problem_type, COUNT(*) as count
+        FROM problem_reports pr
+        JOIN zones z ON pr.zone_id = z.id
+        WHERE z.city = ? AND pr.status = 'new'
+        GROUP BY problem_type
+        ''',
+        (city,)
+    ).fetchall()
+    problem_labels = [row['problem_type'] for row in problem_stats]
+    problem_values = [row['count'] for row in problem_stats]
+    zones = conn.execute(
+        'SELECT * FROM zones WHERE city = ? AND is_approved = 1',
+        (city,)
+    ).fetchall()
+    zones_data = [row_to_dict(z) for z in zones]
+    stats = calculate_zone_stats(zones_data)
+    conn.close()
+    return jsonify({
+        'metrics': {
+            'total_zones': stats['total'],
+            'good_zones': stats['good'],
+            'problem_zones': stats['needs_care'] + stats['critical'],
+            'maintenance_count': stats['problems_count']
+        },
+        'statusDistribution': {
+            'labels': status_labels,
+            'values': status_values
+        },
+        'typeDistribution': {
+            'labels': type_labels,
+            'values': type_values
+        },
+        'problemsByType': {
+            'labels': problem_labels,
+            'values': problem_values
+        }
+    })
+
+
+# API для получения детальной статистики по типам зон
+@app.route('/api/analytics/detailed')
+def get_detailed_stats():
+    city = request.args.get('city', 'Барнаул')
+    conn = get_db()
+    zones_stats = conn.execute(
+        '''
+        SELECT
+            type,
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'отличный' THEN 1 ELSE 0 END) as excellent,
+            SUM(CASE WHEN status = 'хороший' THEN 1 ELSE 0 END) as good,
+            SUM(CASE WHEN status = 'удовлетворительный' THEN 1 ELSE 0 END) as satisfactory,
+            SUM(CASE WHEN status = 'требует ухода' THEN 1 ELSE 0 END) as needs_care,
+            SUM(CASE WHEN status = 'критический' THEN 1 ELSE 0 END) as critical
+        FROM zones
+        WHERE city = ? AND is_approved = 1
+        GROUP BY type
+        ''',
+        (city,)
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        'zones': [row_to_dict(z) for z in zones_stats]
+    })
+
+
+# API для получения прогнозов состояния зон и бюджета
+@app.route('/api/analytics/predictions')
+def get_predictions():
+    city = request.args.get('city', 'Барнаул')
+    conn = get_db()
+    zones = conn.execute(
+        'SELECT * FROM zones WHERE city = ? AND is_approved = 1',
+        (city,)
+    ).fetchall()
+    zones_data = [row_to_dict(z) for z in zones]
+    conn.close()
+
+    # Прогнозы состояний
+    predictions = generate_predictions(zones_data)
+    status_prediction = {
+        'improve': len([p for p in predictions if p['priority'] == 'низкий']),
+        'worsen': len(
+            [p for p in predictions if p['priority'] in ['высокий', 'критический']]
+        ),
+        'stable': len([p for p in predictions if p['priority'] == 'средний']),
+        'recommendation': (
+            'Рекомендуется уделить внимание зонам с высоким приоритетом'
+        )
+    }
+    recommendations = []
+    for pred in predictions:
+        if pred['priority'] in ['высокий', 'критический']:
+            recommendations.append(
+                f"Зона '{pred['zone_name']}': {pred['prediction']}"
+            )
+
+    # Расчёт бюджета
+    costs = estimate_maintenance_cost(zones_data, city)
+    budget_data = {
+        'monthly': costs['total_monthly'],
+        'quarterly': costs['total_quarterly'],
+        'annual': costs['total_annual'],
+        'recommended': costs['total_annual'] * 1.2  # пример резерва
+    }
+
+    return jsonify({
+        'status': status_prediction,
+        'budget': budget_data,  # ← добавлено
+        'recommendations': recommendations[:5]
+    })
+
+
+# API для получения данных для графиков аналитики
+@app.route('/api/analytics/chart/<chart_type>')
+def get_chart_data(chart_type):
+    city = request.args.get('city', 'Барнаул')
+    conn = get_db()
+    if chart_type == 'problem-types':
+        problem_stats = conn.execute(
+            '''
+            SELECT problem_type, COUNT(*) as count
+            FROM problem_reports pr
+            JOIN zones z ON pr.zone_id = z.id
+            WHERE z.city = ? AND pr.status = 'new'
+            GROUP BY problem_type
+            ''',
+            (city,)
+        ).fetchall()
+        data = {
+            'labels': [p['problem_type'] for p in problem_stats],
+            'values': [p['count'] for p in problem_stats]
+        }
+    else:
+        data = {'error': 'Invalid chart type'}
+    conn.close()
+    return jsonify(data)
+
+
+# API для получения списка пользователей (для администраторов)
+@app.route('/api/admin/users')
+def get_users():
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    users = conn.execute('SELECT * FROM users ORDER BY id').fetchall()
+    conn.close()
+    return jsonify([row_to_dict(u) for u in users])
+
+
+# API для получения статистики для панели администратора
+@app.route('/api/admin/statistics')
+def get_admin_statistics():
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    total_zones = conn.execute('SELECT COUNT(*) as count FROM zones').fetchone()['count']
+    total_users = conn.execute('SELECT COUNT(*) as count FROM users').fetchone()['count']
+    total_reports = conn.execute(
+        'SELECT COUNT(*) as count FROM problem_reports'
+    ).fetchone()['count']
+    active_problems = conn.execute(
+        'SELECT COUNT(*) as count FROM problem_reports WHERE status = "new"'
+    ).fetchone()['count']
+    completed_maintenance = conn.execute(
+        'SELECT COUNT(*) as count FROM maintenance_logs'
+    ).fetchone()['count']
+    problems_by_type = conn.execute(
+        '''
+        SELECT problem_type, COUNT(*) as count
+        FROM problem_reports
+        WHERE status = 'new'
+        GROUP BY problem_type
+        '''
+    ).fetchall()
+    zones_by_city = conn.execute(
+        '''
+        SELECT city, COUNT(*) as count
+        FROM zones
+        GROUP BY city
+        '''
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        'total_zones': total_zones,
+        'total_users': total_users,
+        'total_reports': total_reports,
+        'active_problems': active_problems,
+        'completed_maintenance': completed_maintenance,
+        'problems_by_type': [row_to_dict(p) for p in problems_by_type],
+        'zones_by_city': {row['city']: row['count'] for row in zones_by_city}
+    })
+
+
+# API для назначения пользователя младшим администратором
+@app.route('/api/admin/promote-junior-admin/<int:user_id>', methods=['POST'])
+def promote_junior_admin(user_id):
+    user = session.get('user')
+    if not user or user.get('role') != 'super_admin':
+        return jsonify({'error': 'Требуются права супер-администратора'}), 401
+    data = request.get_json()
+    admin_password = data.get('admin_password')
+    if not admin_password:
+        return jsonify({'error': 'Требуется пароль администратора'}), 400
+    conn = get_db()
+    admin = conn.execute(
+        'SELECT * FROM users WHERE id = ?',
+        (session['user']['id'],)
+    ).fetchone()
+    from werkzeug.security import check_password_hash
+    if not admin or not check_password_hash(admin['password_hash'], admin_password):
+        conn.close()
+        return jsonify({'error': 'Неверный пароль администратора'}), 401
+    conn.execute(
+        'UPDATE users SET role = "junior_admin" WHERE id = ?',
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Пользователь назначен младшим администратором'})
+
+
+# API для назначения пользователя модератором
+@app.route('/api/admin/promote-moderator/<int:user_id>', methods=['POST'])
+def promote_moderator(user_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Требуются права администратора'}), 401
+    data = request.get_json()
+    admin_password = data.get('admin_password')
+    conn = get_db()
+    if user.get('role') == 'super_admin':
+        if not admin_password:
+            return jsonify({'error': 'Требуется пароль администратора'}), 400
+        admin = conn.execute(
+            'SELECT * FROM users WHERE id = ?',
+            (session['user']['id'],)
+        ).fetchone()
+        from werkzeug.security import check_password_hash
+        if not admin or not check_password_hash(admin['password_hash'], admin_password):
+            conn.close()
+            return jsonify({'error': 'Неверный пароль администратора'}), 401
+    conn.execute(
+        'UPDATE users SET role = "moderator" WHERE id = ?',
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Пользователь назначен модератором'})
+
+
+# API для понижения пользователя до обычного
+@app.route('/api/admin/demote-user/<int:user_id>', methods=['POST'])
+def demote_user(user_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Требуются права администратора'}), 401
+    data = request.get_json()
+    target_user_id = user_id
+    current_user_role = user.get('role')
+    conn = get_db()
+    target_user = conn.execute(
+        'SELECT * FROM users WHERE id = ?',
+        (target_user_id,)
+    ).fetchone()
+    if not target_user:
+        conn.close()
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    target_role = target_user['role']
+    if current_user_role == 'super_admin':
+        if target_role == 'super_admin':
+            conn.close()
+            return jsonify({'error': 'Нельзя понизить другого супер-администратора'}), 403
+        new_role = 'user'
+    elif current_user_role == 'junior_admin':
+        if target_role != 'moderator':
+            conn.close()
+            return jsonify({'error': 'Можно понижать только модераторов'}), 403
+        new_role = 'user'
+    else:
+        conn.close()
+        return jsonify({'error': 'Недостаточно прав'}), 403
+    conn.execute(
+        'UPDATE users SET role = ? WHERE id = ?',
+        (new_role, target_user_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Пользователь понижен до обычного пользователя'})
+
+
+# API для удаления пользователя (только супер-администратор)
+@app.route('/api/admin/delete-user/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    user = session.get('user')
+    if not user or user.get('role') != 'super_admin':
+        return jsonify({'error': 'Требуются права супер-администратора'}), 401
+    data = request.get_json()
+    admin_password = data.get('admin_password')
+    if not admin_password:
+        return jsonify({'error': 'Требуется пароль администратора'}), 400
+    conn = get_db()
+    admin = conn.execute(
+        'SELECT * FROM users WHERE id = ?',
+        (session['user']['id'],)
+    ).fetchone()
+    from werkzeug.security import check_password_hash
+    if not admin or not check_password_hash(admin['password_hash'], admin_password):
+        conn.close()
+        return jsonify({'error': 'Неверный пароль администратора'}), 401
+    if user_id == session['user']['id']:
+        conn.close()
+        return jsonify({'error': 'Нельзя удалить свой собственный аккаунт'}), 400
+    target_user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not target_user:
+        conn.close()
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    if target_user['role'] == 'super_admin':
+        conn.close()
+        return jsonify({'error': 'Нельзя удалить другого супер-администратора'}), 403
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Пользователь удален'})
+
+
+# API для управления зоной (получить, обновить, удалить)
+@app.route('/api/admin/zone/<int:zone_id>', methods=['GET', 'PUT', 'DELETE'])
+def manage_zone(zone_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    if request.method == 'GET':
+        zone = conn.execute('SELECT * FROM zones WHERE id = ?', (zone_id,)).fetchone()
+        if not zone:
+            conn.close()
+            return jsonify({'error': 'Zone not found'}), 404
+        problems_count = conn.execute(
+            'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone_id,)
+        ).fetchone()['cnt']
+        zone_dict = row_to_dict(zone)
+        zone_dict['problems_count'] = problems_count
+        # manual_problems_count уже есть в zone_dict
+        conn.close()
+        return jsonify(zone_dict)
+    elif request.method == 'PUT':
+        data = request.get_json()
+        try:
+            lat_str = str(data.get('lat', 0)).replace(',', '.')
+            lng_str = str(data.get('lng', 0)).replace(',', '.')
+            lat = float(lat_str)
+            lng = float(lng_str)
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                return jsonify({
+                    'error': 'Некорректные координаты',
+                    'details': {
+                        'lat': lat,
+                        'lng': lng,
+                        'message': 'Координаты вне допустимого диапазона'
+                    }
+                }), 400
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'error': 'Некорректные координаты',
+                'details': {
+                    'lat_input': data.get('lat'),
+                    'lng_input': data.get('lng'),
+                    'error_message': str(e)
+                }
+            }), 400
+
+        # Обработка manual_problems_count
+        manual_count = data.get('manual_problems_count')
+        if manual_count is not None:
+            try:
+                manual_count = int(manual_count)
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Некорректное значение количества проблем'}), 400
+
+        conn.execute(
+            '''
+            UPDATE zones SET
+                name = ?, city = ?, type = ?, status = ?, lat = ?, lng = ?,
+                manual_problems_count = ?
+            WHERE id = ?
+            ''',
+            (
+                data.get('name'),
+                data.get('city'),
+                data.get('type'),
+                data.get('status'),
+                lat,
+                lng,
+                manual_count,
+                zone_id
+            )
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Зона обновлена'})
+    elif request.method == 'DELETE':
+        user_role = user.get('role')
+        if user_role not in ['super_admin', 'junior_admin']:
+            return jsonify({'error': 'Недостаточно прав для удаления зон'}), 403
+        conn.execute('DELETE FROM problem_reports WHERE zone_id = ?', (zone_id,))
+        conn.execute('DELETE FROM maintenance_logs WHERE zone_id = ?', (zone_id,))
+        conn.execute('DELETE FROM zones WHERE id = ?', (zone_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Зона удалена'})
+
+
+# Новый эндпоинт: синхронизация статуса зоны с учётом ручного количества проблем
+@app.route('/api/admin/zone/<int:zone_id>/sync-status', methods=['POST'])
+def sync_zone_status(zone_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    manual_count = data.get('problems_count')
+
+    conn = get_db()
+    zone = conn.execute('SELECT * FROM zones WHERE id = ?', (zone_id,)).fetchone()
+    if not zone:
+        conn.close()
+        return jsonify({'error': 'Zone not found'}), 404
+
+    if manual_count is not None:
+        try:
+            problems_count = int(manual_count)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': 'Некорректное значение количества проблем'}), 400
+    else:
+        problems_count = conn.execute(
+            'SELECT COUNT(*) as cnt FROM problem_reports WHERE zone_id = ? AND status = "new"',
+            (zone_id,)
+        ).fetchone()['cnt']
+
+    original_status = zone['status']
+    adjusted_status = get_adjusted_status(original_status, problems_count)
+
+    # Обновляем статус и manual_problems_count
+    conn.execute(
+        'UPDATE zones SET status = ?, manual_problems_count = ? WHERE id = ?',
+        (adjusted_status, problems_count, zone_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'new_status': adjusted_status})
+
+
+# API для добавления зоны администратором или модератором
+@app.route('/api/admin/add-zone', methods=['POST'])
+def admin_add_zone():
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin', 'moderator']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json()
+    required_fields = ['name', 'city', 'type', 'lat', 'lng']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Не заполнено обязательное поле: {field}'}), 400
+    try:
+        lat = float(data['lat'])
+        lng = float(data['lng'])
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            return jsonify({'error': 'Некорректные координаты'}), 400
+    except ValueError:
+        return jsonify({'error': 'Некорректные координаты'}), 400
+    conn = get_db()
+    try:
+        conn.execute(
+            '''
+            INSERT INTO zones (
+                name, city, type, status, lat, lng, created_by, is_approved
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ''',
+            (
+                data['name'],
+                data['city'],
+                data['type'],
+                data.get('status', 'Удовлетворительный'),
+                lat,
+                lng,
+                session['user']['id']
+            )
+        )
+        conn.commit()
+        zone_id = conn.execute('SELECT last_insert_rowid() as id').fetchone()['id']
+        conn.close()
+        return jsonify({
+            'success': True,
+            'message': 'Зона успешно добавлена',
+            'zone_id': zone_id
+        })
+    except Exception as e:
+        conn.close()
+        print(f"Ошибка добавления зоны: {e}")
+        return jsonify({'error': f'Ошибка базы данных: {str(e)}'}), 500
+
+
+# API для получения элементов справочника
+@app.route('/api/dictionaries/<dict_type>')
+def get_dictionary(dict_type):
+    conn = get_db()
+    if dict_type == 'cities':
+        data = conn.execute('SELECT * FROM cities ORDER BY name').fetchall()
+    elif dict_type == 'zone_types':
+        data = conn.execute('SELECT * FROM zone_types ORDER BY name').fetchall()
+    elif dict_type == 'statuses':
+        data = conn.execute('SELECT * FROM zone_statuses ORDER BY name').fetchall()
+    elif dict_type == 'problem_types':
+        data = conn.execute('SELECT * FROM problem_types ORDER BY name').fetchall()
+    else:
+        conn.close()
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+    conn.close()
+    return jsonify([row_to_dict(row) for row in data])
+
+
+# API для активации/деактивации элемента справочника
+@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>/toggle', methods=['POST'])
+def toggle_dictionary_item(dict_type, item_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    table_map = {
+        'cities': 'cities',
+        'zone_types': 'zone_types',
+        'statuses': 'zone_statuses',
+        'problem_types': 'problem_types'
+    }
+    table = table_map.get(dict_type)
+    if not table:
+        conn.close()
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+    current = conn.execute(
+        f'SELECT is_active FROM {table} WHERE id = ?',
+        (item_id,)
+    ).fetchone()
+    if not current:
+        conn.close()
+        return jsonify({'error': 'Элемент не найден'}), 404
+    new_active = 0 if current['is_active'] == 1 else 1
+    conn.execute(
+        f'UPDATE {table} SET is_active = ? WHERE id = ?',
+        (new_active, item_id)
+    )
+    conn.commit()
+    conn.close()
+    action = 'активирован' if new_active == 1 else 'деактивирован'
+    return jsonify({'success': True, 'message': f'Элемент {action}'})
+
+
+# API для полного удаления элемента справочника
+@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['DELETE'])
+def delete_dictionary_item(dict_type, item_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    table_map = {
+        'cities': 'cities',
+        'zone_types': 'zone_types',
+        'statuses': 'zone_statuses',
+        'problem_types': 'problem_types'
+    }
+    table = table_map.get(dict_type)
+    if not table:
+        conn.close()
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+    item = conn.execute(f'SELECT * FROM {table} WHERE id = ?', (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({'error': 'Элемент не найден'}), 404
+    conn.execute(f'DELETE FROM {table} WHERE id = ?', (item_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Элемент полностью удален'})
+
+
+# API для добавления элемента в справочник
+@app.route('/api/admin/dictionaries/<dict_type>', methods=['POST'])
+def add_dictionary_item(dict_type):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json()
+    conn = get_db()
+    table_map = {
+        'cities': 'cities',
+        'zone_types': 'zone_types',
+        'statuses': 'zone_statuses',
+        'problem_types': 'problem_types'
+    }
+    table = table_map.get(dict_type)
+    if not table:
+        conn.close()
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+    try:
+        if table == 'cities':
+            conn.execute(
+                '''
+                INSERT INTO cities (name, lat, lng, zoom, is_active)
+                VALUES (?, ?, ?, ?, ?)
+                ''',
+                (
+                    data['name'], data['lat'], data['lng'],
+                    data['zoom'], data.get('is_active', 1)
+                )
+            )
+        elif table == 'zone_statuses':
+            conn.execute(
+                '''
+                INSERT INTO zone_statuses (name, color, icon, priority, is_active)
+                VALUES (?, ?, ?, ?, ?)
+                ''',
+                (
+                    data['name'], data['color'], data.get('icon', ''),
+                    data.get('priority', 3), data.get('is_active', 1)
+                )
+            )
+        else:
+            conn.execute(
+                f'''
+                INSERT INTO {table} (name, description, icon, is_active)
+                VALUES (?, ?, ?, ?)
+                ''',
+                (
+                    data['name'], data.get('description', ''),
+                    data.get('icon', ''), data.get('is_active', 1)
+                )
+            )
+        conn.commit()
+        item_id = conn.execute('SELECT last_insert_rowid() as id').fetchone()['id']
+        conn.close()
+        return jsonify({'success': True, 'message': 'Элемент добавлен', 'id': item_id})
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'Элемент с таким именем уже существует'}), 400
+
+
+# API для обновления элемента справочника
+@app.route('/api/admin/dictionaries/<dict_type>/<int:item_id>', methods=['PUT'])
+def update_dictionary_item(dict_type, item_id):
+    user = session.get('user')
+    if not user or user.get('role') not in ['super_admin', 'junior_admin']:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json()
+    conn = get_db()
+    table_map = {
+        'cities': 'cities',
+        'zone_types': 'zone_types',
+        'statuses': 'zone_statuses',
+        'problem_types': 'problem_types'
+    }
+    table = table_map.get(dict_type)
+    if not table:
+        conn.close()
+        return jsonify({'error': 'Invalid dictionary type'}), 400
+    item = conn.execute(f'SELECT * FROM {table} WHERE id = ?', (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({'error': 'Элемент не найден'}), 404
+    try:
+        if table == 'cities':
+            conn.execute(
+                '''
+                UPDATE cities SET name = ?, lat = ?, lng = ?, zoom = ?, is_active = ?
+                WHERE id = ?
+                ''',
+                (
+                    data['name'], data['lat'], data['lng'],
+                    data.get('zoom', 12), data.get('is_active', 1), item_id
+                )
+            )
+        elif table == 'zone_statuses':
+            conn.execute(
+                '''
+                UPDATE zone_statuses SET name = ?, color = ?, icon = ?, priority = ?, is_active = ?
+                WHERE id = ?
+                ''',
+                (
+                    data['name'], data['color'], data.get('icon', ''),
+                    data.get('priority', 3), data.get('is_active', 1), item_id
+                )
+            )
+        elif table == 'zone_types':
+            conn.execute(
+                '''
+                UPDATE zone_types SET name = ?, description = ?, icon = ?, is_active = ?
+                WHERE id = ?
+                ''',
+                (
+                    data['name'], data.get('description', ''),
+                    data.get('icon', ''), data.get('is_active', 1), item_id
+                )
+            )
+        elif table == 'problem_types':
+            conn.execute(
+                '''
+                UPDATE problem_types SET name = ?, description = ?, is_active = ?
+                WHERE id = ?
+                ''',
+                (
+                    data['name'], data.get('description', ''),
+                    data.get('is_active', 1), item_id
+                )
+            )
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Элемент обновлен'})
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
